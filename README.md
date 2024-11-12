@@ -5,6 +5,8 @@ based on minimum2scp image
 support for flatpak cli,darkmode,preinstalled firefox
 default password is debian
 
+run by typing: docker run --privileged -d -p 2022:22 -p 5901:5901 -p 6901:6901 nagamuslim/debian-gnome-headless
+
 roadmap:
 
 -fix gnome-terminal(priority)
@@ -13,4 +15,6 @@ roadmap:
 -added support for nix
 -added support for indonesian language
 -added support for audio
+-added chrome remote desktop
+-switch to x11vnc
 
