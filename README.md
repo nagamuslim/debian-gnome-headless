@@ -3,7 +3,6 @@
 Welcome to the **Debian GNOME Headless Docker Image**! This fully-featured Debian container comes with the **GNOME Desktop Environment** pre-installed, optimized for headless use cases. Whether you need a remote GNOME environment or just want to run GNOME apps via VNC, this image provides the essential tools with an easy setup.
 
 [Docker Hub - nagamuslim/debian-gnome-headless](https://hub.docker.com/repository/docker/nagamuslim/debian-gnome-headless)
-
 Based on [minimum2scp](https://hub.docker.com/u/minimum2scp)
 ---
 
