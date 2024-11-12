@@ -3,7 +3,7 @@ dockerfile and issue tracker for nagamuslim/debian-gnome-headless
 
 based on minimum2scp image
 support for flatpak cli,darkmode,preinstalled firefox
-
+default password is debian
 
 roadmap:
 
