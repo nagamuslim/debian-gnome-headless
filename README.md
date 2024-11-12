@@ -31,14 +31,6 @@ Welcome to the **Debian GNOME Headless Docker Image**! This minimal yet fully-fe
   - **p7zip** for file compression.
 
 ---
-
-## How to Run
-
-To run the container, use the following Docker command:
-
-```bash
-docker run --privileged -d -p 2022:22 -p 5901:5901 -p 6901:6901 nagamuslim/debian-gnome-headless
-
 ## Default Credentials
 
 - **VNC Password**: `debian`
@@ -56,4 +48,14 @@ This image is actively maintained, with the following priorities:
 - **Indonesian Language Support**
 - **Audio Support**
 - **Chrome Remote Desktop Integration**
-- Switch to **X11VNC** 
+- Switch to **X11VNC**
+
+
+## How to Run
+
+To run the container, use the following Docker command:
+
+```bash
+docker run --privileged -d -p 2022:22 -p 5901:5901 -p 6901:6901 nagamuslim/debian-gnome-headless
+
+
