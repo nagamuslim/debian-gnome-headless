@@ -14,7 +14,7 @@ RUN sed -i '/#deb-src.*sid/s/^#\s*//g' /etc/apt/sources.list && \
     $(apt list gnome-shell-* | cut -d'/' -f1 | grep gnome- | grep -v 'gnome-shell-extension-gamemode' | grep -v 'gnome-shell-extension-weather' | \grep -v 'gnome-shell-extension-panel-osd' | grep -v 'gnome-shell-extension-vertical-overview' | tr '\n' ' ') \
     gnome-software \
     $(apt-cache pkgnames gnome-software- | grep -v 'gnome-software-plugin-snap' | tr '\n' ' ') \
-    xfce4-terminal \
+    xfce4-terminal \  # fallback terminal
     dbus-x11 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
