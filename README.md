@@ -4,7 +4,7 @@ Welcome to the **Debian GNOME Headless Docker Image**! This fully-featured Debia
 
 [Docker Hub - nagamuslim/debian-gnome-headless](https://hub.docker.com/repository/docker/nagamuslim/debian-gnome-headless)
 
-## Based on [minimum2scp](https://hub.docker.com/u/minimum2scp)
+Based on [minimum2scp](https://hub.docker.com/u/minimum2scp)
 ---
 
 ## Key Features
@@ -35,7 +35,7 @@ Welcome to the **Debian GNOME Headless Docker Image**! This fully-featured Debia
 
 - **VNC Password**: `debian`
 - **SSH Login**: Use SSH to log in with the username `debian` and password `debian`.
-
+---
 ## Roadmap
 
 This image is actively maintained, with the following priorities:
@@ -50,7 +50,7 @@ This image is actively maintained, with the following priorities:
 - **Chrome Remote Desktop Integration**
 - Switch to **X11VNC**
 
-
+---
 ## How to Run
 
 To run the container, use the following Docker command:
