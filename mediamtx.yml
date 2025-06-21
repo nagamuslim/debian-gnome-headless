@@ -365,11 +365,11 @@ webrtcAllowOrigin: '*'
 webrtcTrustedProxies: []
 # Address of a local UDP listener that will receive connections.
 # Use a blank string to disable.
-webrtcLocalUDPAddress: :8189
+webrtcLocalUDPAddress: ''
 # Address of a local TCP listener that will receive connections.
 # This is disabled by default since TCP is less efficient than UDP and
 # introduces a progressive delay when network is congested.
-webrtcLocalTCPAddress: ''
+webrtcLocalTCPAddress: ':8189'
 # WebRTC clients need to know the IP of the server.
 # Gather IPs from interfaces and send them to clients.
 webrtcIPsFromInterfaces: yes
