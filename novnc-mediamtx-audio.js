@@ -1,12 +1,22 @@
 /*
  * noVNC-mediamtx-audio.js: A robust, dependency-free audio player for noVNC.
- * Version: 2.0 (icons via CDN)
+ * Version: 3.0 (Configurable Stream Path)
+ *
+ * This version allows you to specify the HLS stream path directly in the
+ * HTML script tag using the 'data-stream-path' attribute.
+ *
+ * --- USAGE ---
+ * Default (uses '/stream/index.m3u8'):
+ * <script src="novnc-mediamtx-audio.js" defer></script>
+ *
+ * Custom Path:
+ * <script src="novnc-mediamtx-audio.js" data-stream-path="/my-other-stream/live.m3u8" defer></script>
+ *
  */
 (function() {
     'use strict';
 
-    // --- Configuration ---
-    const HLS_STREAM_PATH = '/stream/index.m3u8';
+    // --- Default Configuration ---
     const HLS_SCRIPT_PATH = 'https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js';
     // Icons (Bootstrap Icons via jsDelivr)
     const ICON_UNMUTE = 'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/icons/volume-up.svg';
@@ -14,6 +24,14 @@
     const ICON_RETRY  = 'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/icons/arrow-repeat.svg';
     const ICON_ERROR  = 'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/icons/x-circle.svg';
     // --- End of Configuration ---
+
+    // --- Dynamic Configuration ---
+    // Get the current script element to read its attributes
+    const currentScript = document.currentScript;
+    // Get the stream path from the 'data-stream-path' attribute, or use the default
+    const HLS_STREAM_PATH = currentScript.dataset.streamPath || '/stream/index.m3u8';
+    console.log(`noVNC-audio: Using stream path: ${HLS_STREAM_PATH}`);
+    // --- End of Dynamic Configuration ---
 
     let hls;
     let audio;
@@ -42,6 +60,7 @@
     }
 
     function setButtonIcon(url, title) {
+        if (!audioButton) return;
         audioButton.innerHTML = `<img src="${url}" style="width:24px;height:24px;vertical-align:middle;">`;
         audioButton.title = title;
     }
@@ -60,6 +79,7 @@
             document.body.appendChild(audio);
 
             hls = new Hls({
+                // Robust HLS configuration for low-latency streams
                 fragLoadPolicy: {
                     default: {
                         maxTimeToFirstByteMs: 10000,
@@ -100,11 +120,13 @@
 
         } else {
             // Already initialized – just toggle mute
-            audio.muted = !audio.muted;
-            if (audio.muted) {
-                setButtonIcon(ICON_MUTE, 'Unmute Audio');
-            } else {
-                setButtonIcon(ICON_UNMUTE, 'Mute Audio');
+            if (audio) {
+                audio.muted = !audio.muted;
+                if (audio.muted) {
+                    setButtonIcon(ICON_MUTE, 'Unmute Audio');
+                } else {
+                    setButtonIcon(ICON_UNMUTE, 'Mute Audio');
+                }
             }
         }
     }
@@ -142,7 +164,10 @@
                 obs.disconnect();
             }
         });
-        observer.observe(document.body, { childList: true, subtree: true });
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
     }
 
     if (document.readyState === 'loading') {
