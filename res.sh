@@ -1,65 +1,67 @@
-#!/bin/bash
-# Script to set VNC geometry based on /etc/profile.d/00docker-env.sh
-# Aims to adhere to strict formatting/logic constraints.
+#!/bin/sh
+#
+# res.sh — parse VNC resolution & password, export to /run/vnc.env
+#
 
-# --- Attempt to source the res value ---
-# 2>/dev/null suppresses "No such file or directory" if 00docker-env.sh is missing.
-RES_STRING=$(grep '^export res=' /etc/profile.d/00docker-env.sh 2>/dev/null)
+# Where to look for your exports
+DEFAULT_CONFIG_FILE="/etc/profile.d/00docker-env.sh"
+VNC_CONFIG_FILE=${1:-$DEFAULT_CONFIG_FILE}
 
-# --- Exit if res line is not found ---
-# Uses command grouping { ...; } for multiple commands after && or ||
-[ -n "$RES_STRING" ] || { echo "Error: 'export res=' line not found in /etc/profile.d/00docker-env.sh. Exiting." >&2; exit 0; }
+# Where systemd will pick up the vars
+ENV_FILE="/run/vnc.env"
 
-# --- Extract and clean the RES_VALUE ---
-# Handles cases like res='1920x1080', res="1920x1080", or res=1920x1080 (though uncommon for export)
-RES_VALUE_QUOTED=$(echo "$RES_STRING" | cut -d= -f2-)
-RES_VALUE=$(echo "$RES_VALUE_QUOTED" | sed "s/^['\"]//;s/['\"]$//") # Remove leading/trailing ' or "
+# Helpers
+get_value_from_line() {
+    # strip VAR= and any quotes & trailing space
+    echo "$1" | cut -d= -f2- \
+        | sed "s/^['\"]//;s/['\"]$//;s/[[:space:]]*$//"
+}
 
-# --- Exit if RES_VALUE is empty after extraction ---
-[ -n "$RES_VALUE" ] || { echo "Error: res variable is empty after extraction from /etc/profile.d/00docker-env.sh. Exiting." >&2; exit 1; }
-echo "INFO: Found res='$RES_VALUE' from configuration file." >&2
+# 1) Defaults
+GEOMETRY="1280x720"
+VNC_PASS=""
 
-# --- Determine GEOMETRY using case statement ---
-GEOMETRY="" # Initialize GEOMETRY
-case "$RES_VALUE" in
-    *x*) # Direct WxH format e.g., "1920x1080"
-        PARSED_W=$(echo "$RES_VALUE" | cut -dx -f1)
-        PARSED_H=$(echo "$RES_VALUE" | cut -dx -f2)
-        # Validate that PARSED_W and PARSED_H are numbers. grep -Eq returns 0 on match.
-        (echo "$PARSED_W" | grep -Eq '^[0-9]+$' && echo "$PARSED_H" | grep -Eq '^[0-9]+$') && GEOMETRY="$RES_VALUE" || \
-        { echo "Warning: Invalid WxH format in res='$RES_VALUE'. Exiting." >&2; exit 1; }
-        # No 4K capping here, as per your clarification for manually typed resolutions
-        ;;
-    "720p"|"hd") GEOMETRY="1280x720" ;;
-    "1080p"|"fhd") GEOMETRY="1920x1080" ;;
-    "1440p"|"qhd") GEOMETRY="2560x1440" ;; # Corrected 1440o, this is max keyword resolution
-    "800p") GEOMETRY="1280x800" ;;
-    # Phone aspect ratios - awk for precision, printf "%.0f" to round to nearest integer
-    "hd+")   TEMP_W=$(awk 'BEGIN {printf "%.0f", 720*19/9}');    GEOMETRY="${TEMP_W}x720" ;;
-    "hd+ 1") TEMP_W=$(awk 'BEGIN {printf "%.0f", 720*18/9}');    GEOMETRY="${TEMP_W}x720" ;;
-    "hd+ 2") TEMP_W=$(awk 'BEGIN {printf "%.0f", 720*19/9}');    GEOMETRY="${TEMP_W}x720" ;;
-    "hd+ 3") TEMP_W=$(awk 'BEGIN {printf "%.0f", 720*19.5/9}');  GEOMETRY="${TEMP_W}x720" ;;
-    "fhd+")  TEMP_W=$(awk 'BEGIN {printf "%.0f", 1080*19/9}');   GEOMETRY="${TEMP_W}x1080" ;;
-    "fhd+ 1")TEMP_W=$(awk 'BEGIN {printf "%.0f", 1080*18/9}');   GEOMETRY="${TEMP_W}x1080" ;;
-    "fhd+ 2")TEMP_W=$(awk 'BEGIN {printf "%.0f", 1080*19/9}');   GEOMETRY="${TEMP_W}x1080" ;;
-    "fhd+ 3")TEMP_W=$(awk 'BEGIN {printf "%.0f", 1080*19.5/9}'); GEOMETRY="${TEMP_W}x1080" ;;
-    *) # Unknown keyword
-        echo "Warning: Unknown resolution keyword '$RES_VALUE'. Exiting." >&2
-        exit 0
-        ;;
-esac
-echo "INFO: Determined VNC GEOMETRY='$GEOMETRY'." >&2
+# 2) Try to parse
+if [ -f "$VNC_CONFIG_FILE" ]; then
+    # Resolution
+    if grep -q '^export res=' "$VNC_CONFIG_FILE"; then
+        RES_LINE=$(grep '^export res=' "$VNC_CONFIG_FILE")
+        RES_VAL=$(get_value_from_line "$RES_LINE")
+        case "$RES_VAL" in
+            [0-9]*x[0-9]*)
+                W=${RES_VAL%x*}; H=${RES_VAL#*x}
+                if [ "$W" -eq "$W" ] 2>/dev/null && [ "$H" -eq "$H" ] 2>/dev/null; then
+                    GEOMETRY="$RES_VAL"
+                fi
+                ;;
+            720p|hd)  GEOMETRY="1280x720" ;;
+            1080p|fhd) GEOMETRY="1920x1080" ;;
+            1440p|qhd) GEOMETRY="2560x1440" ;;
+            800p)      GEOMETRY="1280x800" ;;
+            *) # unknown → leave default
+                ;;
+        esac
+    fi
 
-# --- Apply GEOMETRY to VNC service file and reload systemd ---
-# GEOMETRY will be set if script reaches here due to exit 1 in case arms for errors.
-echo "INFO: Attempting to update VNC service configuration..." >&2 && \
-sudo sed -i "s|^\(ExecStart=/usr/bin/vncserver\)\(\s\+-geometry\s\+\)[0-9]*x[0-9]*|\1\2${GEOMETRY}|" /etc/systemd/system/vncserver@.service && \
-echo "INFO: /etc/systemd/system/vncserver@.service successfully updated with geometry ${GEOMETRY}." >&2 && \
-echo "INFO: Reloading systemd daemon..." >&2 && \
-sudo sed -i '/^ExecStartPre=/d' /etc/systemd/system/vncserver@.service || true && \
-sudo systemctl daemon-reload && sudo systemctl restart vncserver@1.service && \
-echo "INFO: Systemd daemon reloaded. Geometry change will apply on next vncserver@ instance start." >&2 || \
-{ echo "Error: Failed to apply VNC geometry or reload systemd." >&2; exit 1; }
+    # VNC password overrides
+    if grep -q '^export VNC_PASSWORD=' "$VNC_CONFIG_FILE"; then
+        VNC_PASS=$(grep '^export VNC_PASSWORD=' "$VNC_CONFIG_FILE" \
+                   | get_value_from_line)
+    elif grep -q '^export USER_PASSWORD=' "$VNC_CONFIG_FILE"; then
+        VNC_PASS=$(grep '^export USER_PASSWORD=' "$VNC_CONFIG_FILE" \
+                   | get_value_from_line)
+    fi
+fi
 
-echo "INFO: Script finished successfully." >&2
+# 3) Write out the env file (always at least has GEOMETRY)
+printf 'GEOMETRY=%s\n' "$GEOMETRY" > "$ENV_FILE"
+
+# 4) If we got a password, install it for VNC
+if [ -n "$VNC_PASS" ]; then
+    VNC_DIR="/home/debian/.vnc"
+    mkdir -p "$VNC_DIR"
+    echo "$VNC_PASS" | vncpasswd -f > "$VNC_DIR/passwd"
+    chmod 600 "$VNC_DIR/passwd"
+fi
+
 exit 0
