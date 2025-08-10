@@ -181,7 +181,7 @@ RUN chmod u+x ~/.vnc/xstartup && mkdir -p /home/debian/Downloads /home/debian/.c
 # Copy the script
 #COPY installer.py /home/debian/.cache/
 #COPY res.sh /home/debian/.cache/
-COPY *.desktop /home/debian/Desktop/
+#COPY *.desktop /home/debian/Desktop/
 #COPY blank_login.keyring /home/user/.local/share/keyrings/login.keyring
 RUN curl -o /home/debian/.cache/res.sh https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/res.sh && curl -o /home/debian/.cache/installer.py https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/installer.py && curl -o /home/debian/mediamtx.yml https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/mediamtx.yml && \
     sudo chmod +x /home/debian/.cache/installer.py && sudo chmod +x /home/debian/.cache/res.sh  && \
