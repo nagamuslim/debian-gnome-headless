@@ -124,7 +124,8 @@ RUN mkdir /etc/gnome-initial-setup/ && \
 polkit.addRule(function(action, subject) {
     return polkit.Result.YES;
 });
-EOF && mkdir -p /var/lib/systemd/linger \
+EOF
+RUN mkdir -p /var/lib/systemd/linger \
     && touch /var/lib/systemd/linger/debian \
     && set -eux; \
     for svc in \
