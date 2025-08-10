@@ -108,8 +108,8 @@ exec gnome-session
 EOF
 
 vncserver -kill $DISPLAY
-END_SCRIPT && \
-    chmod u+x ~/.vnc/xstartup && mkdir -p /home/debian/Downloads /home/debian/.cache /home/debian/.config /home/debian/.local /home/debian/.gnupg /home/debian/Desktop && \
+END_SCRIPT
+RUN chmod u+x ~/.vnc/xstartup && mkdir -p /home/debian/Downloads /home/debian/.cache /home/debian/.config /home/debian/.local /home/debian/.gnupg /home/debian/Desktop && \
     sudo chmod 700 /home/debian/.gnupg /home/debian/.local && echo -e "\n[Backends]\nEnabledBackends=flatpak-backend\n\n[FlatpakSources]\nSources=flathub\n\n[PackageKit]\nEnabled=false\n\n[ResourcesModel]\ncurrentApplicationBackend=flatpak-backend" > /home/debian/.config/discoverrc && sed -i '/-e/d' /home/debian/.config/discoverrc && sed -i '/-e/d' /home/debian/.vnc/xstartup && \
     sudo chmod 755 /home/debian/.config && sudo chmod 777 /home/debian/.cache && sudo chmod u+rw  /home/debian/.cache/ && \
 #COPY *.desktop /home/debian/Desktop/
