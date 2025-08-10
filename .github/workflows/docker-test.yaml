@@ -28,6 +28,9 @@ jobs:
           # It is not pushed to any registry.
           load: true
           tags: test:latest
+      - name: Debug as root
+        run: |
+         sudo bash -c 'whoami && ls -ld /root'
 
       # Step 2: Build the final image using the local base image
       - name: Build final debian-gnome-headless image
