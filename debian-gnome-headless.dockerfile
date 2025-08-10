@@ -7,7 +7,7 @@ FROM minimum2scp/systemd:latest
 RUN chmod 777 /home/debian && sed -i '/#deb-src.*sid/s/^#\s*//g' /etc/apt/sources.list && apt-get update -y && apt-get --yes --force-yes -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" upgrade -y && apt-get --yes --force-yes -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" dist-upgrade -y && \
     apt remove sysvinit-core initscripts sysv-rc sysvinit-utils -y --allow-remove-essential && \
     apt update -y && apt install expect systemd-container openssh-server htop systemd-sysv libpam-systemd systemd  -y && systemctl mask systemd-modules-load.service
-ENV remove="gnome-software gnome-shell-extensions gnome-terminal"
+#ENV remove="gnome-software gnome-shell-extensions gnome-terminal"
 RUN apt-get update && HOME=/home/debian apt-get install -y \
     python3 \
     python3-pip \
@@ -40,7 +40,14 @@ RUN apt-get update && HOME=/home/debian apt-get install -y \
     flatseal \
     xfce-polkit \
     dbus-x11 && \
-    apt-get remove -y --purge $remove && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV REMOVE_PACKAGES="gnome-software gnome-shell-extensions gnome-terminal"
+
+# Use apt-get in a single RUN command for efficiency
+# This also includes proper cleanup to reduce image size
+RUN apt-get remove -y --purge $REMOVE_PACKAGES && \
     apt-get autoremove -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
