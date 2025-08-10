@@ -122,11 +122,10 @@ WORKDIR /mnt1
 RUN mkdir /etc/gnome-initial-setup/ 
 
 RUN sudo mkdir -p /etc/polkit-1/rules.d && \
-    sudo tee /etc/polkit-1/rules.d/49-nopasswd-flatpak.rules > /dev/null <<'EOF'
-polkit.addRule(function(action, subject) {
-    return polkit.Result.YES;
-});
-EOF
+    echo 'polkit.addRule(function(action, subject) {' > /tmp/rule.js && \
+    echo '    return polkit.Result.YES;' >> /tmp/rule.js && \
+    echo '});' >> /tmp/rule.js && \
+    sudo mv /tmp/rule.js /etc/polkit-1/rules.d/49-nopasswd-flatpak.rules
 
 RUN mkdir -p /var/lib/systemd/linger \
     && touch /var/lib/systemd/linger/debian \
