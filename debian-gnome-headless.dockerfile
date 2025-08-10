@@ -8,7 +8,6 @@ RUN chmod 777 /home/debian && sed -i '/#deb-src.*sid/s/^#\s*//g' /etc/apt/source
     apt remove sysvinit-core initscripts sysv-rc sysvinit-utils -y --allow-remove-essential && \
     apt update -y && apt install expect systemd-container openssh-server htop systemd-sysv libpam-systemd systemd  -y && systemctl mask systemd-modules-load.service
 
-#FROM minimum2scp/systemd:latest
 RUN apt-get update && HOME=/home/debian apt-get install -y \
     python3 \
     python3-pip \
@@ -60,15 +59,16 @@ RUN mkdir -p /home/debian/.vnc && \
     echo -e "#This is a configuration file for butt (broadcast using this tool)\n\n[main]\nbg_color = 252645120\ntxt_color = -256\nserver = web\nsrv_ent = web\nicy = \nicy_ent = \nnum_of_srv = 1\nnum_of_icy = 0\nsong_update_url_active = 0\nsong_update_url_interval = 1\nsong_update_url =\nsong_path = \nsong_update = 0\nsong_delay = 0\nsong_prefix = \nsong_suffix = \nread_last_line = 0\napp_update_service = 0\napp_update = 0\napp_artist_title_order = 1\ngain = 1.000000\nsignal_threshold = 0.000000\nsilence_threshold = 0.000000\nsignal_detection = 0\nsilence_detection = 0\ncheck_for_update = 1\nstart_agent = 0\nminimize_to_tray = 1\nconnect_at_startup = 1\nforce_reconnecting = 1\nreconnect_delay = 5\nic_charset = \nlog_file = \n\n[audio]\ndevice = 0\ndevice2 = -1\ndev_remember = 1\nsamplerate = 48000\nbitrate = 128\nchannel = 2\nleft_ch = 1\nright_ch = 2\nleft_ch2 = 1\nright_ch2 = 2\ncodec = opus\nresample_mode = 1\nsilence_level = 50.000000\nsignal_level = 50.000000\ndisable_dithering = 0\nbuffer_ms = 50\ndev_name = Default PCM device (default)\ndev2_name = None\n\n[record]\nbitrate = 192\ncodec = opus\nstart_rec = 0\nstop_rec = 0\nrec_after_launch = 0\noverwrite_files = 0\nsync_to_hour = 0\nsplit_time = 0\nfilename = rec_%Y%m%d-%H%M%S.opus\nsignal_threshold = 0.000000\nsilence_threshold = 0.000000\nsignal_detection = 0\nsilence_detection = 0\nfolder = /home/debian/\n\n[tls]\ncert_file = \ncert_dir = \n\n[dsp]\nequalizer = 0\nequalizer_rec = 0\neq_preset = Manual\ngain1 = 0.000000\ngain2 = 0.000000\ngain3 = 0.000000\ngain4 = 0.000000\ngain5 = 0.000000\ngain6 = 0.000000\ngain7 = 0.000000\ngain8 = 0.000000\ngain9 = 0.000000\ngain10 = 0.000000\ncompressor = 0\ncompressor_rec = 0\naggressive_mode = 0\nthreshold = -20.000000\nratio = 5.000000\nattack = 0.010000\nrelease = 1.000000\nmakeup_gain = 0.000000\n\n[mixer]\nprimary_device_gain = 1.000000\nprimary_device_muted = 0\nsecondary_device_gain = 1.000000\nsecondary_device_muted = 0\nstreaming_gain = 1.000000\nrecording_gain = 1.000000\nrecording_muted = 0\n\n[stream]\nstream_title = \nstream_desc = \nstream_url = \nstream_genre = \n\n[web]\nweb_port = 1257\nweb_refresh_rate = 1\nweb_user = admin\nweb_password = admin\n\n" > /home/debian/buttweb.txt
 RUN cat > ~/.vnc/xstartup <<'END_SCRIPT'
 #!/bin/sh
-exec >> /home/debian/xstartup.log 2>&1
-set -x
+#exec >> /home/debian/xstartup.log 2>&1
+#set -x
 
 [ -r $HOME/.Xresources ] && xrdb $HOME/.Xresources
 test x"$SHELL" = x"" && SHELL=/bin/bash
 test x"$1" = x"" && set -- default
 xhost +
 
-sudo -u debian -i bash -x >>/home/debian/xstartup.log 2>&1 <<'EOF'
+#sudo -u debian -i bash -x >>/home/debian/xstartup.log 2>&1 <<'EOF'
+sudo -u debian -i bash <<'EOF'
 export DISPLAY=:1
 export G_MESSAGES_DEBUG=all
 export XAUTHORITY=/home/debian/.Xauthority
@@ -106,12 +106,12 @@ butt -c /home/debian/butt.txt >/dev/null 2>&1 &
 
 # Start desktop environment
 export XDG_SESSION_TYPE=x11
-exec gnome-session --debug >> /home/debian/xstartup.log 2>&1
+exec gnome-session
 EOF
 
 vncserver -kill $DISPLAY
-END_SCRIPT
-RUN chmod u+x ~/.vnc/xstartup && mkdir -p /home/debian/Downloads /home/debian/.cache /home/debian/.config /home/debian/.local /home/debian/.gnupg /home/debian/Desktop && \
+END_SCRIPT && \
+    chmod u+x ~/.vnc/xstartup && mkdir -p /home/debian/Downloads /home/debian/.cache /home/debian/.config /home/debian/.local /home/debian/.gnupg /home/debian/Desktop && \
     sudo chmod 700 /home/debian/.gnupg /home/debian/.local && echo -e "\n[Backends]\nEnabledBackends=flatpak-backend\n\n[FlatpakSources]\nSources=flathub\n\n[PackageKit]\nEnabled=false\n\n[ResourcesModel]\ncurrentApplicationBackend=flatpak-backend" > /home/debian/.config/discoverrc && sed -i '/-e/d' /home/debian/.config/discoverrc && sed -i '/-e/d' /home/debian/.vnc/xstartup && \
     sudo chmod 755 /home/debian/.config && sudo chmod 777 /home/debian/.cache && sudo chmod u+rw  /home/debian/.cache/ && echo done
 COPY *.desktop /home/debian/Desktop/
