@@ -24,7 +24,7 @@ jobs:
           # This image is only built for the local context of the runner
           # It is not pushed to any registry.
           load: true
-          tags: minimum2scp/systemd:latest
+          tags: test:latest
 
       # Step 2: Build the final image using the local base image
       - name: Build final debian-gnome-headless image
