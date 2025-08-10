@@ -40,7 +40,7 @@ RUN apt-get update && HOME=/home/debian apt-get install -y \
     xfce-polkit \
     dbus-x11 && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* || true
 
 #    $(apt-cache pkgnames gnome-software- | grep -v 'gnome-software-plugin-snap' | tr '\n' ' ') 
 #RUN apt-get remove -y --purge $remove && \
