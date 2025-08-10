@@ -12,8 +12,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
+
+      - name: Set up Docker Buildx (local driver)
         uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
 
       # Step 1: Build the base image from patch.dockerfile
       - name: Build base systemd image
@@ -32,7 +35,7 @@ jobs:
         with:
           context: .
           file: ./old dockerfile/debian7.1.dockerfile
-          # This tags the image but does not push it yet.
+          load: true  
           # The image name will be like 'ghcr.io/your-username/your-repo:latest'
           push: false
           tags: ghcr.io/${{ github.repository }}:latest
