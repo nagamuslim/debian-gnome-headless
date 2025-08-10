@@ -1,5 +1,5 @@
-FROM minimum2scp/systemd:latest
-
+#FROM minimum2scp/systemd:latest
+FROM test:latest
 #RUN chmod 777 /home/debian 
 ##&& curl -O "https://downloads.realvnc.com/download/file/vnc.files/VNC-Server-7.13.1-Linux-x64.deb?lai_vid=EW33V2yA4ue2y&lai_sr=0-4"
  #&& mkdir -p /home/debian/.config && mkdir -p /home/debian/.cache && chmod 777 /home/debian/.config && chmod 777 /home/debian/.cache
