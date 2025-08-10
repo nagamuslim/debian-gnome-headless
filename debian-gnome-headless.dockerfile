@@ -172,23 +172,25 @@ RUN echo "app='$(curl -s https://api.github.com/repos/bluenviron/mediamtx/releas
     echo -e "[Unit]\nDescription=noVNC WebSocket Proxy Service\nAfter=network.target\n\n[Service]\nType=simple\nUser=debian\nGroup=debian\nWorkingDirectory=/home/debian\nEnvironment=HOME=/home/debian\nEnvironment=USER=debian\nExecStart=/usr/bin/websockify --web /usr/share/novnc 6080 localhost:5901\nRestart=always\nRestartSec=3\nStandardOutput=syslog\nStandardError=syslog\n\n[Install]\nWantedBy=multi-user.target" | sudo tee /etc/systemd/system/websockify.service > /dev/null && \
     echo -e "[Unit]\nDescription=Sound Service\n\n[Service]\n# Note that notify will only work if --daemonize=no\nType=notify\nExecStart=/usr/bin/pulseaudio --daemonize=no --exit-idle-time=-1 --disallow-exit=true --system --log-target=syslog --log-level=4\nNice=-10\nRestart=always\n\n[Install]\nWantedBy=default.target" > /etc/systemd/system/pulseaudio.service && \
     echo -e "\n[Unit]\nDescription=Dynamic Application Installer Service\nAfter=network-online.target \n\n[Service]\nType=simple\nWorkingDirectory=/home/debian/.cache/\nUser=debian\nGroup=debian\nEnvironmentFile=-/etc/installer.env\nEnvironment=app\nExecStart=/home/debian/.cache/installer.py\nExecStartPost=+/bin/rm -rf /etc/installer.env\nExecStartPost=-/usr/local/bin/mediamtx\nRestart=always\nTimeoutStopSec=infinity\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target" | sudo tee /etc/systemd/system/installer.service > /dev/null && \
-    echo -e "\n[Unit]\nDescription=MediaMTX + BUTT Streaming Service\nAfter=network-online.target installer.service\nWants=installer.service network-online.target\n\n[Service]\nType=simple\nExecStart=/usr/local/bin/mediamtx \nRestart=on-failure\nRestartSec=2\nTimeoutStopSec=infinity\n\n[Install]\nWantedBy=multi-user.target" > /etc/systemd/system/mediamtx.service 
-RUN tee /etc/systemd/user/ibus-daemon.service > /dev/null << 'EOF'
-    [Unit]
-    Description=IBus Input Method Framework
-    After=graphical-session.target
+    echo -e "\n[Unit]\nDescription=MediaMTX + BUTT Streaming Service\nAfter=network-online.target installer.service\nWants=installer.service network-online.target\n\n[Service]\nType=simple\nExecStart=/usr/local/bin/mediamtx \nRestart=on-failure\nRestartSec=2\nTimeoutStopSec=infinity\n\n[Install]\nWantedBy=multi-user.target" > /etc/systemd/system/mediamtx.service && \
+    echo -e "\n[Unit]\nDescription=IBus Input Method Framework\nAfter=graphical-session.target\n\n[Service]\nType=dbus\nBusName=org.freedesktop.IBus\nExecStart=/usr/bin/ibus-daemon --xim --panel disable\nRestart=on-failure\n\n[Install]\nWantedBy=gnome-session.target" > /etc/systemd/user/ibus-daemon.service
 
-    [Service]
-    Type=dbus
-    BusName=org.freedesktop.IBus
-    ExecStart=/usr/bin/ibus-daemon --xim --panel disable
-    Restart=on-failure
+#RUN tee /etc/systemd/user/ibus-daemon.service > /dev/null << 'EOF'
+#    [Unit]
+#    Description=IBus Input Method Framework
+#    After=graphical-session.target
+#
+#    [Service]
+#    Type=dbus
+#    BusName=org.freedesktop.IBus
+#    ExecStart=/usr/bin/ibus-daemon --xim --panel disable
+#    Restart=on-failure
+#
+#    [Install]
+#    WantedBy=gnome-session.target
+#    EOF
 
-    [Install]
-    WantedBy=gnome-session.target
-    EOF
-
-RUN sed -i '/-e/d' /etc/systemd/system/vncserver@.service && sudo sed -i 's|\(ExecStart=.*-geometry\) *|\1 ${GEOMETRY} |' /etc/systemd/system/vncserver@.service && \
+RUN sed -i '/-e/d' /etc/systemd/user/ibus-daemon.service && sed -i '/-e/d' /etc/systemd/system/vncserver@.service && sudo sed -i 's|\(ExecStart=.*-geometry\) *|\1 ${GEOMETRY} |' /etc/systemd/system/vncserver@.service && \
     systemctl --user enable ibus-daemon && systemctl enable vncserver@1.service && systemctl enable pulseaudio.service && systemctl enable nginx && \
     systemctl enable websockify.service && systemctl enable icecast2 & dpkg --add-architecture i386 && apt update && \
     systemctl enable installer.service && systemctl enable mediamtx.service && sed -i '/-e/d' /etc/systemd/system/installer.service || true && sed -i '/-e/d' /etc/systemd/system/mediamtx.service || true
