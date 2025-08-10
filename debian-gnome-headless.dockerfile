@@ -125,6 +125,7 @@ polkit.addRule(function(action, subject) {
     return polkit.Result.YES;
 });
 EOF
+
 RUN mkdir -p /var/lib/systemd/linger \
     && touch /var/lib/systemd/linger/debian \
     && set -eux; \
