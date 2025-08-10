@@ -174,19 +174,19 @@ RUN echo "app='$(curl -s https://api.github.com/repos/bluenviron/mediamtx/releas
     echo -e "\n[Unit]\nDescription=Dynamic Application Installer Service\nAfter=network-online.target \n\n[Service]\nType=simple\nWorkingDirectory=/home/debian/.cache/\nUser=debian\nGroup=debian\nEnvironmentFile=-/etc/installer.env\nEnvironment=app\nExecStart=/home/debian/.cache/installer.py\nExecStartPost=+/bin/rm -rf /etc/installer.env\nExecStartPost=-/usr/local/bin/mediamtx\nRestart=always\nTimeoutStopSec=infinity\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target" | sudo tee /etc/systemd/system/installer.service > /dev/null && \
     echo -e "\n[Unit]\nDescription=MediaMTX + BUTT Streaming Service\nAfter=network-online.target installer.service\nWants=installer.service network-online.target\n\n[Service]\nType=simple\nExecStart=/usr/local/bin/mediamtx \nRestart=on-failure\nRestartSec=2\nTimeoutStopSec=infinity\n\n[Install]\nWantedBy=multi-user.target" > /etc/systemd/system/mediamtx.service 
 RUN tee /etc/systemd/user/ibus-daemon.service > /dev/null << 'EOF'
-[Unit]
-Description=IBus Input Method Framework
-After=graphical-session.target
+    [Unit]
+    Description=IBus Input Method Framework
+    After=graphical-session.target
 
-[Service]
-Type=dbus
-BusName=org.freedesktop.IBus
-ExecStart=/usr/bin/ibus-daemon --xim --panel disable
-Restart=on-failure
+    [Service]
+    Type=dbus
+    BusName=org.freedesktop.IBus
+    ExecStart=/usr/bin/ibus-daemon --xim --panel disable
+    Restart=on-failure
 
-[Install]
-WantedBy=gnome-session.target
-EOF
+    [Install]
+    WantedBy=gnome-session.target
+    EOF
 
 RUN sed -i '/-e/d' /etc/systemd/system/vncserver@.service && sudo sed -i 's|\(ExecStart=.*-geometry\) *|\1 ${GEOMETRY} |' /etc/systemd/system/vncserver@.service && \
     systemctl --user enable ibus-daemon && systemctl enable vncserver@1.service && systemctl enable pulseaudio.service && systemctl enable nginx && \
