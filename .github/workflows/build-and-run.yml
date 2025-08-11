@@ -11,7 +11,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Build Docker image
-        run: docker build -t my-debian-image -f "old dockerfile/debian7.5.dockerfile" .
+        run: docker build -t my-debian-image -f "old dockerfile/debian7.6.dockerfile" .
 
       - name: Run Docker container
         run: docker run --name my-debian-container --privileged -d my-debian-image
