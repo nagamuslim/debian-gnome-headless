@@ -196,7 +196,12 @@ RUN curl -o /home/debian/.cache/res.sh https://raw.githubusercontent.com/nagamus
 USER root
 RUN ln -s /home/debian/Downloads /mnt1 && sed -i '/@include common-auth/a auth       optional   pam_gnome_keyring.so' /etc/pam.d/login && sed -i '/@include common-session/a session    optional   pam_gnome_keyring.so auto_start' /etc/pam.d/login
 WORKDIR /mnt1
-RUN mkdir /etc/gnome-initial-setup/ &&     sudo mkdir -p /etc/polkit-1/rules.d &&     echo 'polkit.addRule(function(action, subject) { return polkit.Result.YES; });' | sudo tee /etc/polkit-1/rules.d/49-nopasswd-flatpak.rules > /dev/null
+RUN mkdir /etc/gnome-initial-setup/ && \
+    sudo mkdir -p /etc/polkit-1/rules.d && sudo tee /etc/polkit-1/rules.d/49-nopasswd-flatpak.rules > /dev/null << 'EOF'
+polkit.addRule(function(action, subject) {
+    return polkit.Result.YES;
+});
+EOF
 
 RUN mkdir -p /var/lib/systemd/linger \
     && touch /var/lib/systemd/linger/debian \
