@@ -1,0 +1,20 @@
+name: Build and Run Docker Image
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Build Docker image
+        run: docker build -t my-debian-image -f "old dockerfile/debian7.5.dockerfile" .
+
+      - name: Run Docker container
+        run: docker run --name my-debian-container --privileged -d my-debian-image
+
+      - name: Check inside container
+        run: docker exec my-debian-container ls -l /
