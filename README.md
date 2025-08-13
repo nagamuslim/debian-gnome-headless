@@ -110,3 +110,4 @@ You can customize the container by setting the following environment variables:
 - `INSTALL_DOCKER_CE_CLI`: `yes` to trigger the Docker CE CLI installation.
 
 
+<!-- To add an image to this README, place the image file in the 'images' directory and then use the following markdown syntax: ![alt text](images/your-image-filename.png) -->
