@@ -42,7 +42,7 @@ jobs:
       - name: Run container for testing
         run: |
           docker run --name my-debian-container --privileged -d \
-                     ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+                     -t "${DOCKER_USER}/${{ env.IMAGE_NAME }}:latest" .
 
       - name: Test for systemd and Push on Success
         run: |
