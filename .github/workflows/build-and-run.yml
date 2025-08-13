@@ -17,4 +17,5 @@ jobs:
         run: docker run --name my-debian-container --privileged -d my-debian-image
 
       - name: Check inside container
-        run: docker exec my-debian-container ls -l /
+        run: docker exec my-debian-container ls -l / && ps -p 1 -o comm=
+
