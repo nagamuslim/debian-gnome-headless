@@ -59,7 +59,7 @@ This image is actively maintained, with the following priorities:
 To run the container, use the following Docker command:
 
 ```bash
-docker run --privileged -d -p 2022:22 -p 5901:5901 -p 6901:6901 nagamuslim/debian-gnome-headless
+docker run --privileged -d -p 2022:22 -p 5901:5901 -p 6901:6901 -p 8000:8000 nagamuslim/debian-gnome-headless
 ```
 
 ### Environment Variables
