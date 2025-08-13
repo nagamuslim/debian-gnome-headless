@@ -1,0 +1,12 @@
+[Unit]
+Description=IBus Input Method Framework
+After=graphical-session.target
+
+[Service]
+Type=dbus
+BusName=org.freedesktop.IBus
+ExecStart=/usr/bin/ibus-daemon --xim --panel disable
+Restart=on-failure
+
+[Install]
+WantedBy=gnome-session.target
