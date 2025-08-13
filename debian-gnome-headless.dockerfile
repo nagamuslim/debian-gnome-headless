@@ -93,7 +93,7 @@ gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
 butt -c /home/debian/butt.txt >/dev/null 2>&1 &
 
 
-(detect_butt  && sleep 5 && rm -f ~/.local/share/keyrings/login.keyring ) &
+( detect_butt  && sleep 5 && rm -f ~/.local/share/keyrings/login.keyring ) &
 
 ( detect_butt  && sleep 10 && /usr/local/bin/butt*.AppImage -c /home/debian/buttweb.txt & ) &
 ( detect_butt && sleep 10 && /usr/libexec/gnome-initial-setup & ) &
@@ -140,7 +140,7 @@ RUN mkdir -p /var/lib/systemd/linger \
         runuser -u debian -- systemctl --user mask "$svc"; \
     done; \
     echo "User services masked successfully." 
-RUN curl -L  'https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/vendor.conf'   -o /etc/gnome-initial-setup/vendor.conf && curl -L  'https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/nginx.conf'   -o /etc/nginx/conf.d/default.conf && curl -L 'https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/script/ibus-daemon.service' -o /etc/systemd/system/ibus-daemon.service && curl -L 'https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/script/49-nopasswd-flatpak.rules' -o /etc/polkit-1/rules.d/49-nopasswd-flatpak.rules
+RUN curl -L  'https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/vendor.conf'   -o /etc/gnome-initial-setup/vendor.conf && curl -L  'https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/nginx.conf'   -o /etc/nginx/conf.d/default.conf && curl -L 'https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/script/ibus-daemon.service' -o /etc/systemd/user/ibus-daemon.service && curl -L 'https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/script/49-nopasswd-flatpak.rules' -o /etc/polkit-1/rules.d/49-nopasswd-flatpak.rules
 RUN set -eux; \
     \
     # create the .ssh dirs
