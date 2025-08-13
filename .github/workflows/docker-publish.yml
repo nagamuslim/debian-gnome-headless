@@ -12,6 +12,8 @@ jobs:
     env:
       DOCKERFILE_PATH: "debian-gnome-headless.dockerfile"
       IMAGE_NAME: "debian-gnome-headless"
+      # If DOCKERHUB_USERNAME secret is not set, fallback to GitHub username
+      DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME || github.actor }}
 
     steps:
       - name: Verify Docker credentials
@@ -31,18 +33,18 @@ jobs:
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME || github.actor }}
+          username: ${{ env.DOCKER_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build Docker image
         run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest \
-                       -f "${{ env.DOCKERFILE_PATH }}" .
+          docker build -t "${DOCKER_USER}/${IMAGE_NAME}:latest" \
+                       -f "${DOCKERFILE_PATH}" .
 
       - name: Run container for testing
         run: |
           docker run --name my-debian-container --privileged -d \
-                     -t "${DOCKER_USER}/${{ env.IMAGE_NAME }}:latest" .
+                     "${DOCKER_USER}/${IMAGE_NAME}:latest"
 
       - name: Test for systemd and Push on Success
         run: |
@@ -52,7 +54,7 @@ jobs:
           echo "Process with PID 1 is: $INIT_PROCESS"
           if [ "$INIT_PROCESS" = "systemd" ]; then
             echo "✅ systemd detected. Pushing image to Docker Hub..."
-            docker push ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+            docker push "${DOCKER_USER}/${IMAGE_NAME}:latest"
           else
             echo "❌ Test Failed: systemd was not found as PID 1."
             exit 1
