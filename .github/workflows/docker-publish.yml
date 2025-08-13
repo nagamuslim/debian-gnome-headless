@@ -1,27 +1,75 @@
-name: Docker Image CI
+name: Build, Test, and Push Docker Image
 
+# --- HOW TO AUTOMATE ---
+# This workflow runs automatically on every push to the 'main' branch.
+# It also allows for manual runs from the GitHub Actions tab ("Run workflow").
 on:
   push:
     branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
-  build:
+  build-and-push:
     runs-on: ubuntu-latest
 
+    # --- EASY CONFIGURATION ---
+    # Change the Dockerfile path and image name here.
+    env:
+      DOCKERFILE_PATH: "debian-gnome-headless.dockerfile"
+      IMAGE_NAME: "debian-gnome-headless" # Change this to your desired image name
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Login to Docker Hub
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        # Good practice for modern Docker builds
+        uses: docker/setup-buildx-action@v3
 
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v4
-      with:
-        context: .
-        file: ./debian-gnome-headless.dockerfile
-        push: true
-        tags: nagamuslim/debian-gnome-headless:latest
+      - name: Login to Docker Hub
+        # This uses the secrets you will set up in your repository
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build Docker image
+        # Builds the image and tags it for pushing to Docker Hub
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest \
+                       -f "${{ env.DOCKERFILE_PATH }}" .
+
+      - name: Run container for testing
+        # Runs the container in the background. --privileged is essential for systemd to function correctly.
+        run: |
+          docker run --name my-debian-container --privileged -d \
+                     ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Test for systemd and Push on Success
+        # This is the core logic. It checks PID 1 and only pushes if the test passes.
+        run: |
+          echo "--- Checking for systemd as PID 1 ---"
+          # Give the container a moment to initialize systemd
+          sleep 15
+
+          # Execute the test command and store the output
+          INIT_PROCESS=$(docker exec my-debian-container ps -p 1 -o comm=)
+          echo "Process with PID 1 is: $INIT_PROCESS"
+
+          # Check if the process is systemd
+          if [ "$INIT_PROCESS" = "systemd" ]; then
+            echo "✅ systemd detected. Pushing image to Docker Hub..."
+            docker push ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+          else
+            echo "❌ Test Failed: systemd was not found as PID 1."
+            # Exit with an error code to fail the workflow
+            exit 1
+          fi
+
+      - name: Clean up container
+        # This step will run even if the workflow fails, ensuring the runner is clean.
+        if: always()
+        run: |
+          echo "--- Cleaning up container ---"
+          docker stop my-debian-container
+          docker rm my-debian-container
