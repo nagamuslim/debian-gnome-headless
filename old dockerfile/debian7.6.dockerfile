@@ -122,12 +122,7 @@ RUN curl -o /home/debian/.cache/res.sh https://raw.githubusercontent.com/nagamus
 USER root
 RUN ln -s /home/debian/Downloads /mnt1 && sed -i '/@include common-auth/a auth       optional   pam_gnome_keyring.so' /etc/pam.d/login && sed -i '/@include common-session/a session    optional   pam_gnome_keyring.so auto_start' /etc/pam.d/login
 WORKDIR /mnt1
-RUN mkdir /etc/gnome-initial-setup/ && \
-    sudo mkdir -p /etc/polkit-1/rules.d && sudo tee /etc/polkit-1/rules.d/49-nopasswd-flatpak.rules > /dev/null << 'EOF'
-polkit.addRule(function(action, subject) {
-    return polkit.Result.YES;
-});
-EOF
+RUN mkdir /etc/gnome-initial-setup/ 
 
 RUN mkdir -p /var/lib/systemd/linger \
     && touch /var/lib/systemd/linger/debian \
@@ -145,7 +140,7 @@ RUN mkdir -p /var/lib/systemd/linger \
         runuser -u debian -- systemctl --user mask "$svc"; \
     done; \
     echo "User services masked successfully." 
-RUN curl -L  'https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/vendor.conf'   -o /etc/gnome-initial-setup/vendor.conf && curl -L  'https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/nginx.conf'   -o /etc/nginx/conf.d/default.conf
+RUN curl -L  'https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/vendor.conf'   -o /etc/gnome-initial-setup/vendor.conf && curl -L  'https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/nginx.conf'   -o /etc/nginx/conf.d/default.conf && curl -L 'https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/script/ibus-daemon.service' -o /etc/systemd/system/ibus-daemon.service && curl -L 'https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/script/49-nopasswd-flatpak.rules' -o /etc/polkit-1/rules.d/49-nopasswd-flatpak.rules
 RUN set -eux; \
     \
     # create the .ssh dirs
@@ -182,20 +177,7 @@ RUN echo "load-module module-simple-protocol-tcp listen=127.0.0.1 format=s16le c
     echo -e "\n[Unit]\nDescription=Dynamic Application Installer Service\nAfter=network-online.target \n\n[Service]\nType=simple\nWorkingDirectory=/home/debian/.cache/\nUser=debian\nGroup=debian\nEnvironmentFile=-/etc/installer.env\nEnvironment=app\nExecStart=/home/debian/.cache/installer.py\nExecStartPost=+/bin/rm -rf /etc/installer.env\nExecStartPost=-/usr/local/bin/mediamtx\nRestart=always\nTimeoutStopSec=infinity\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target" | sudo tee /etc/systemd/system/installer.service > /dev/null && \
     echo -e "\n[Unit]\nDescription=MediaMTX + BUTT Streaming Service\nAfter=network-online.target installer.service\nWants=installer.service network-online.target\n\n[Service]\nType=simple\n#User=debian\n#Group=debian\n\nExecStart=/usr/local/bin/mediamtx \n#ExecStartPost=/bin/sleep 5\n#ExecStart=/usr/bin/flatpak run de.danielnoethen.butt -c /home/debian/buttweb.txt\n\nRestart=on-failure\nRestartSec=2\nTimeoutStopSec=infinity\n\n[Install]\nWantedBy=multi-user.target" > /etc/systemd/system/mediamtx.service
 
-RUN tee /etc/systemd/user/ibus-daemon.service > /dev/null << 'EOF'
-[Unit]
-Description=IBus Input Method Framework
-After=graphical-session.target
-
-[Service]
-Type=dbus
-BusName=org.freedesktop.IBus
-ExecStart=/usr/bin/ibus-daemon --xim --panel disable
-Restart=on-failure
-
-[Install]
-WantedBy=gnome-session.target
-EOF
+RUN 
 
 RUN sed -i '/-e/d' /etc/systemd/system/vncserver@.service && sudo sed -i 's|\(ExecStart=.*-geometry\) *|\1 ${GEOMETRY} |' /etc/systemd/system/vncserver@.service && \
     systemctl --user enable ibus-daemon && systemctl enable vncserver@1.service && systemctl enable pulseaudio.service && systemctl enable nginx && \
