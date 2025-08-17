@@ -11,26 +11,44 @@ on:
   workflow_dispatch:
 
 jobs:
-  # JOB 1: Checks for updates to the base image. This job is fast.
   check-for-update:
-    if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
-    outputs:
-      needs-updating: ${{ steps.check.outputs.needs-updating }}
     env:
-      # Use the same fallback logic here for consistency
       DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME || github.actor }}
+    outputs:
+      needs-updating: ${{ steps.final.outputs.needs-updating }}
+
     steps:
-      - name: Check if base image has been updated
+      - name: "Short-circuit for non-schedule (force build on push/manual)"
+        id: default
+        run: |
+          if [ "${{ github.event_name }}" != "schedule" ]; then
+            echo "needs-updating=true" >> $GITHUB_OUTPUT
+          else
+            # leave blank for schedule case; we'll set in final step
+            echo "needs-updating=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: "Check if base image has been updated (only on schedule)"
         id: check
+        if: ${{ github.event_name == 'schedule' }}
         uses: lucacome/docker-image-update-checker@v2.0.0
         with:
-          # This must match the 'FROM' line in your Dockerfile
           base-image: minimum2scp/systemd:latest
-          # Use the DOCKER_USER variable to construct the image name
           image: ${{ env.DOCKER_USER }}/debian-gnome-headless:latest
 
-  # JOB 2: Builds and pushes the image.
+      - name: "Finalize job output"
+        id: final
+        run: |
+          if [ "${{ github.event_name }}" == "schedule" ]; then
+            # use the checker's output
+            echo "needs-updating=${{ steps.check.outputs.needs-updating }}" >> $GITHUB_OUTPUT
+          else
+            # non-schedule -> build (we set it above too, but be explicit)
+            echo "needs-updating=true" >> $GITHUB_OUTPUT
+          fi
+
+
   build-and-push:
     needs: check-for-update
     # Runs if triggered by a push OR if the check job found an update.
