@@ -93,12 +93,13 @@ gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
 butt -c /home/debian/butt.txt >/dev/null 2>&1 &
 
 
-( detect_butt  && sleep 5 && rm -f ~/.local/share/keyrings/login.keyring ) &
+( detect_butt  && sleep 10 && sudo rm -rf ~/.local/share/keyrings/login.keyring ) &
 
 ( detect_butt  && sleep 10 && /usr/local/bin/butt*.AppImage -c /home/debian/buttweb.txt & ) &
 ( detect_butt && sleep 10 && /usr/libexec/gnome-initial-setup & ) &
 
 export XDG_SESSION_TYPE=x11
+mkdir -p /home/debian/.vnc && pgrep Xtigervnc > /home/debian/.vnc/$(hostname):1.pid
 exec gnome-session
 
 
