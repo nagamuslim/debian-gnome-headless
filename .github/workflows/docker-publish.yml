@@ -70,7 +70,7 @@ jobs:
           echo "✅ Docker credentials found"
 
       - name: Checkout repository
-        uses: actions/checkout@latest
+        uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@latest
