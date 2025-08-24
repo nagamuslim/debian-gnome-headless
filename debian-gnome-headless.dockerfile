@@ -55,7 +55,7 @@ RUN mkdir -p /home/debian/Desktop && cp /usr/share/applications/firefox.desktop 
 RUN flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo && \
     systemctl set-default graphical.target && usermod -aG pulse-access root && usermod -aG pulse-access debian && \
     sed -i 's/<source-password>hackme<\/source-password>/<source-password>debian<\/source-password>/g' /etc/icecast2/icecast.xml && sed -i 's/<relay-password>hackme<\/relay-password>/<relay-password>debian<\/relay-password>/g' /etc/icecast2/icecast.xml && sed -i 's/<admin-password>hackme<\/admin-password>/<admin-password>debian<\/admin-password>/g' /etc/icecast2/icecast.xml && \
-    HOME=/home/debian apt update && apt --no-install-recommends install plasma-discover-backend-flatpak plasma-discover -y && echo "LANG=en-US.UTF-8" > /etc/default/locale
+    HOME=/home/debian apt update && apt --no-install-recommends install plasma-discover-backend-flatpak plasma-discover -y
 
 
 
@@ -99,9 +99,12 @@ butt -c /home/debian/butt.txt >/dev/null 2>&1 &
 
 ( detect_butt  && sleep 10 && /usr/local/bin/butt*.AppImage -c /home/debian/buttweb.txt & ) &
 ( detect_butt && sleep 10 && /usr/libexec/gnome-initial-setup & ) &
+( current_lang=$(localectl status | grep 'System Locale' | cut -d'=' -f2); while sleep 10; do new_lang=$(localectl status | grep 'System Locale' | cut -d'=' -f2); sys_lang=$(cat /etc/default/locale 2>/dev/null | grep LANG= | cut -d'=' -f2 | tr -d '"'); [ "$current_lang" != "$new_lang" ] || [ "$current_lang" != "$sys_lang" ] && echo "export DEFAULT_LANG='$new_lang'" | sudo tee /etc/profile.d/00docker-env.sh > /dev/null && kill $(cat /home/debian/.vnc/$(hostname):1.pid) && exit; current_lang="$new_lang"; done ) &
+
 
 export XDG_SESSION_TYPE=x11
 mkdir -p /home/debian/.vnc && pgrep Xtigervnc > /home/debian/.vnc/$(hostname):1.pid
+lang_val=$(grep '^export DEFAULT_LANG=' /etc/profile.d/00docker-env.sh 2>/dev/null | cut -d"'" -f2); [ -n "$lang_val" ] && export LANG="$lang_val"
 exec gnome-session
 
 
