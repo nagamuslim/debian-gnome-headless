@@ -43,13 +43,14 @@ RUN apt-get update && HOME=/home/debian apt-get install -y \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-ENV REMOVE_PACKAGES="gnome-software gnome-shell-extensions gnome-terminal"
+ENV REMOVE_PACKAGES="gnome-software gnome-shell-extensions gnome-shell-extensions-common gnome-shell-extensions-extra"
 
 RUN apt-get remove -y --purge $REMOVE_PACKAGES && \
     apt-get autoremove -y && \
-    apt-get clean && \
+    apt-get clean && rm -rf /usr/share/applications/gnome-terminal.desktop && \
     rm -rf /var/lib/apt/lists/*
 
+RUN mkdir -p /home/debian/Desktop && cp /usr/share/applications/firefox.desktop /home/debian/Desktop/ && cp /usr/share/applications/org.gnome.Console.desktop /home/debian/Desktop/ && cp /usr/share/applications/xfce4-terminal.desktop /home/debian/Desktop/ && cp /usr/share/applications/org.kde.discover.desktop /home/debian/Desktop/ && cp /usr/share/applications/com.github.tchx84.Flatseal.desktop /home/debian/Desktop/ && cp /usr/share/applications/org.gnome.seahorse.Application.desktop /home/debian/Desktop/ && cp /usr/share/applications/org.gnome.Extensions.desktop /home/debian/Desktop/ && cp /usr/share/applications/org.gnome.tweaks.desktop /home/debian/Desktop/ && chmod +x /home/debian/Desktop/*.desktop
 
 RUN flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo && \
     systemctl set-default graphical.target && usermod -aG pulse-access root && usermod -aG pulse-access debian && \
@@ -73,7 +74,6 @@ xhost +
 
 sudo -u debian -i bash <<'EOF'
 export DISPLAY=:1
-export G_MESSAGES_DEBUG=all
 export XAUTHORITY=/home/debian/.Xauthority
 
 detect_butt() {
@@ -90,11 +90,12 @@ gsettings set org.gnome.desktop.session idle-delay 0
 gsettings set org.gnome.desktop.screensaver lock-enabled false
 gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
 gsettings set org.gnome.desktop.background show-desktop-icons true
+gnome-extensions enable ding@rastersoft.com
 
 butt -c /home/debian/butt.txt >/dev/null 2>&1 &
 
 
-( detect_butt  && sleep 10 && sudo rm -rf ~/.local/share/keyrings/login.keyring ) &
+[ ! -f /tmp/keyring_reset.lock ] && ( detect_butt  && sleep 10 && sudo rm -rf ~/.local/share/keyrings/login.keyring && touch /tmp/keyring_reset.lock && touch /home/debian/.local/share/keyrings/login.keyring && chmod 400 /home/debian/.local/share/keyrings/login.keyring ) &
 
 ( detect_butt  && sleep 10 && /usr/local/bin/butt*.AppImage -c /home/debian/buttweb.txt & ) &
 ( detect_butt && sleep 10 && /usr/libexec/gnome-initial-setup & ) &
