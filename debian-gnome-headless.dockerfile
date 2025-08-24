@@ -5,7 +5,7 @@ FROM minimum2scp/systemd:latest
 
 RUN chmod 777 /home/debian && sed -i '/#deb-src.*sid/s/^#\s*//g' /etc/apt/sources.list && apt-get update -y && apt-get --yes --force-yes -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" upgrade -y && apt-get --yes --force-yes -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" dist-upgrade -y && \
     apt remove sysvinit-core initscripts sysv-rc sysvinit-utils -y --allow-remove-essential && \
-    apt update -y && apt install expect systemd-container openssh-server htop systemd-sysv libpam-systemd systemd  -y && systemctl mask systemd-modules-load.service
+    apt update -y && apt install expect systemd-container openssh-server htop systemd-sysv libpam-systemd systemd  -y && systemctl mask systemd-modules-load.service && sed -i 's/# id_ID.UTF-8 UTF-8/id_ID.UTF-8 UTF-8/' /etc/locale.gen && echo "LANG=id_ID.UTF-8" > /etc/default/locale && locale-gen
 
 
 RUN apt-get update && HOME=/home/debian apt-get install -y \
