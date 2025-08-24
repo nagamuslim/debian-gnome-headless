@@ -50,7 +50,16 @@ RUN apt-get remove -y --purge $REMOVE_PACKAGES && \
     apt-get clean && rm -rf /usr/share/applications/gnome-terminal.desktop && \
     rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /home/debian/Desktop && cp /usr/share/applications/firefox.desktop /home/debian/Desktop/ && cp /usr/share/applications/org.gnome.Console.desktop /home/debian/Desktop/ && cp /usr/share/applications/xfce4-terminal.desktop /home/debian/Desktop/ && cp /usr/share/applications/org.kde.discover.desktop /home/debian/Desktop/ && cp /usr/share/applications/com.github.tchx84.Flatseal.desktop /home/debian/Desktop/ && cp /usr/share/applications/org.gnome.seahorse.Application.desktop /home/debian/Desktop/ && cp /usr/share/applications/org.gnome.Extensions.desktop /home/debian/Desktop/ && cp /usr/share/applications/org.gnome.tweaks.desktop /home/debian/Desktop/ && chmod +x /home/debian/Desktop/*.desktop
+#RUN mkdir -p /home/debian/Desktop && cp /usr/share/applications/firefox.desktop /home/debian/Desktop/ && cp /usr/share/applications/org.gnome.Console.desktop /home/debian/Desktop/ && cp /usr/share/applications/xfce4-terminal.desktop /home/debian/Desktop/ && cp /usr/share/applications/org.kde.discover.desktop /home/debian/Desktop/ && cp /usr/share/applications/com.github.tchx84.Flatseal.desktop /home/debian/Desktop/ && cp /usr/share/applications/org.gnome.seahorse.Application.desktop /home/debian/Desktop/ && cp /usr/share/applications/org.gnome.Extensions.desktop /home/debian/Desktop/ && cp /usr/share/applications/org.gnome.tweaks.desktop /home/debian/Desktop/ && chmod +x /home/debian/Desktop/*.desktop
+RUN mkdir -p /home/debian/Desktop && \
+  for f in firefox.desktop org.gnome.Console.desktop xfce4-terminal.desktop \
+           org.kde.discover.desktop com.github.tchx84.Flatseal.desktop \
+           org.gnome.seahorse.Application.desktop org.gnome.Extensions.desktop \
+           org.gnome.tweaks.desktop; do \
+    src="/usr/share/applications/$f"; \
+    [ -f "$src" ] && cp "$src" /home/debian/Desktop/; \
+  done && \
+  chmod +x /home/debian/Desktop/*.desktop || true
 
 RUN flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo && \
     systemctl set-default graphical.target && usermod -aG pulse-access root && usermod -aG pulse-access debian && \
@@ -98,7 +107,7 @@ butt -c /home/debian/butt.txt >/dev/null 2>&1 &
 [ ! -f /tmp/keyring_reset.lock ] && ( detect_butt  && sleep 10 && sudo rm -rf ~/.local/share/keyrings/login.keyring && touch /tmp/keyring_reset.lock && touch /home/debian/.local/share/keyrings/login.keyring && chmod 400 /home/debian/.local/share/keyrings/login.keyring ) &
 
 ( detect_butt  && sleep 10 && /usr/local/bin/butt*.AppImage -c /home/debian/buttweb.txt & ) &
-( detect_butt && sleep 10 && /usr/libexec/gnome-initial-setup & ) &
+[ ! -f /tmp/keyring_reset.lock ] && ( detect_butt && sleep 10 && /usr/libexec/gnome-initial-setup & ) &
 ( current_lang=$(localectl status | grep 'System Locale' | cut -d'=' -f2); while sleep 10; do new_lang=$(localectl status | grep 'System Locale' | cut -d'=' -f2); sys_lang=$(cat /etc/default/locale 2>/dev/null | grep LANG= | cut -d'=' -f2 | tr -d '"'); [ "$current_lang" != "$new_lang" ] || [ "$current_lang" != "$sys_lang" ] && echo "export DEFAULT_LANG='$new_lang'" | sudo tee /etc/profile.d/00docker-env.sh > /dev/null && kill $(cat /home/debian/.vnc/$(hostname):1.pid) && exit; current_lang="$new_lang"; done ) &
 
 
