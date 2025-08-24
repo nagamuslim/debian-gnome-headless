@@ -89,6 +89,7 @@ gsettings set org.gnome.shell favorite-apps "['firefox.desktop', 'org.gnome.Evol
 gsettings set org.gnome.desktop.session idle-delay 0
 gsettings set org.gnome.desktop.screensaver lock-enabled false
 gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+gsettings set org.gnome.desktop.background show-desktop-icons true
 
 butt -c /home/debian/butt.txt >/dev/null 2>&1 &
 
