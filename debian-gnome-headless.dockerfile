@@ -5,7 +5,7 @@ FROM minimum2scp/systemd:latest
 
 RUN chmod 777 /home/debian && sed -i '/#deb-src.*sid/s/^#\s*//g' /etc/apt/sources.list && apt-get update -y && apt-get --yes --force-yes -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" upgrade -y && apt-get --yes --force-yes -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" dist-upgrade -y && \
     apt remove sysvinit-core initscripts sysv-rc sysvinit-utils -y --allow-remove-essential && \
-    apt update -y && apt install expect systemd-container openssh-server htop systemd-sysv libpam-systemd systemd  -y && systemctl mask systemd-modules-load.service && sed -i 's/# id_ID.UTF-8 UTF-8/id_ID.UTF-8 UTF-8/' /etc/locale.gen && echo "LANG=id_ID.UTF-8" > /etc/default/locale && locale-gen
+    apt update -y && apt install expect systemd-container openssh-server htop systemd-sysv libpam-systemd systemd  -y && systemctl mask systemd-modules-load.service && sed -i 's/# id_ID.UTF-8 UTF-8/id_ID.UTF-8 UTF-8/' /etc/locale.gen && locale-gen && echo "LANG=id_ID.UTF-8" > /etc/default/locale
 
 
 RUN apt-get update && HOME=/home/debian apt-get install -y \
@@ -54,7 +54,7 @@ RUN apt-get remove -y --purge $REMOVE_PACKAGES && \
 RUN flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo && \
     systemctl set-default graphical.target && usermod -aG pulse-access root && usermod -aG pulse-access debian && \
     sed -i 's/<source-password>hackme<\/source-password>/<source-password>debian<\/source-password>/g' /etc/icecast2/icecast.xml && sed -i 's/<relay-password>hackme<\/relay-password>/<relay-password>debian<\/relay-password>/g' /etc/icecast2/icecast.xml && sed -i 's/<admin-password>hackme<\/admin-password>/<admin-password>debian<\/admin-password>/g' /etc/icecast2/icecast.xml && \
-    HOME=/home/debian apt update && apt --no-install-recommends install plasma-discover-backend-flatpak plasma-discover -y
+    HOME=/home/debian apt update && apt --no-install-recommends install plasma-discover-backend-flatpak plasma-discover -y && echo "LANG=en-US.UTF-8" > /etc/default/locale
 
 
 
