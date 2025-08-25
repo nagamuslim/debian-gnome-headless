@@ -124,7 +124,7 @@ RUN chmod u+x ~/.vnc/xstartup && mkdir -p /home/debian/Downloads /home/debian/.c
 
 #COPY *.desktop /home/debian/Desktop/
     curl -o /home/debian/.cache/res.sh https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/res.sh && curl -o /home/debian/.cache/installer.py https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/installer.py && curl -o /home/debian/mediamtx.yml https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/mediamtx.yml && \
-    sudo chmod +x /home/debian/.cache/installer.py && sudo chmod +x /home/debian/.cache/res.sh  && curl -o /home/debian/.cache/test.sh https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/script/test.sh && sudo chmod +x /home/debian/.cache/test.sh
+    sudo chmod +x /home/debian/.cache/installer.py && sudo chmod +x /home/debian/.cache/res.sh  && curl -o /home/debian/.cache/test.sh https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/script/test.sh && sudo chmod +x /home/debian/.cache/test.sh && \
     mkdir -p ~/.config/tigervnc && cp ~/.vnc/* ~/.config/tigervnc/ && sudo chmod 755 /home/debian && sudo cp /home/debian/mediamtx.yml /mediamtx.yml  && grep -Fq 'gnome-extensions enable ding@rastersoft.com' /home/debian/.vnc/xstartup && exit 0 || ( cp -a /home/debian/.vnc/xstartup /home/debian/.vnc/xstartup.bak.$(date -u +%Y%m%dT%H%M%SZ) 2>/dev/null || true; curl -fsSL 'https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/script/xstartup' -o /tmp/xstartup.$$ && chmod +x /tmp/xstartup.$$ && cp -f /tmp/xstartup.$$ /home/debian/.vnc/xstartup )
 
 USER root
