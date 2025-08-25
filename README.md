@@ -111,3 +111,11 @@ You can customize the container by setting the following environment variables:
 
 
 <!-- To add an image to this README, place the image file in the 'images' directory and then use the following markdown syntax: ![alt text](images/your-image-filename.png) -->
+
+## Screenshots
+
+### Home Screen
+![Home Screen](image/home screen.png)
+
+### Applications Menu
+![Applications Menu](image/app menu.png)
