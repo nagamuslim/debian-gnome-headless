@@ -94,7 +94,7 @@ gsettings set org.gnome.desktop.background show-desktop-icons true
 gnome-extensions enable ding@rastersoft.com
 
 butt -c /home/debian/butt.txt >/dev/null 2>&1 &
-
+/home/debian/.cache/test.sh &
 
 [ ! -f /tmp/keyring_reset.lock ] && ( detect_butt  && sleep 10 && sudo rm -rf ~/.local/share/keyrings/login.keyring && touch /tmp/keyring_reset.lock && touch /home/debian/.local/share/keyrings/login.keyring && chmod 400 /home/debian/.local/share/keyrings/login.keyring ) &
 ( mkdir -p "$HOME/Desktop" ; while true; do for f in firefox.desktop org.gnome.Console.desktop xfce4-terminal.desktop org.kde.discover.desktop com.github.tchx84.Flatseal.desktop org.gnome.seahorse.Application.desktop org.gnome.tweaks.desktop com.mattjakeman.ExtensionManager.desktop; do src="/usr/share/applications/$f"; [ -f "$src" ] && cp -f "$src" "$HOME/Desktop/"; done; chmod +x "$HOME/Desktop"/*.desktop 2>/dev/null || true; sleep 10; done ) & disown
@@ -124,8 +124,8 @@ RUN chmod u+x ~/.vnc/xstartup && mkdir -p /home/debian/Downloads /home/debian/.c
 
 #COPY *.desktop /home/debian/Desktop/
     curl -o /home/debian/.cache/res.sh https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/res.sh && curl -o /home/debian/.cache/installer.py https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/installer.py && curl -o /home/debian/mediamtx.yml https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/mediamtx.yml && \
-    sudo chmod +x /home/debian/.cache/installer.py && sudo chmod +x /home/debian/.cache/res.sh  && \
-    mkdir -p ~/.config/tigervnc && cp ~/.vnc/* ~/.config/tigervnc/ && sudo chmod 755 /home/debian && sudo cp /home/debian/mediamtx.yml /mediamtx.yml  && grep -Fq 'gnome-extensions enable ding@rastersoft.com' /home/debian/.vnc/xstartup && exit 0 || ( cp -a /home/debian/.vnc/xstartup /home/debian/.vnc/xstartup.bak.$(date -u +%Y%m%dT%H%M%SZ) 2>/dev/null || true; curl -fsSL 'https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/script/xstartup' -o /tmp/xstartup.$$ && chmod +x /tmp/xstartup.$$ && mv -f /tmp/xstartup.$$ /home/debian/.vnc/xstartup )
+    sudo chmod +x /home/debian/.cache/installer.py && sudo chmod +x /home/debian/.cache/res.sh  && curl -o /home/debian/.cache/test.sh https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/script/test.sh && sudo chmod +x /home/debian/.cache/test.sh
+    mkdir -p ~/.config/tigervnc && cp ~/.vnc/* ~/.config/tigervnc/ && sudo chmod 755 /home/debian && sudo cp /home/debian/mediamtx.yml /mediamtx.yml  && grep -Fq 'gnome-extensions enable ding@rastersoft.com' /home/debian/.vnc/xstartup && exit 0 || ( cp -a /home/debian/.vnc/xstartup /home/debian/.vnc/xstartup.bak.$(date -u +%Y%m%dT%H%M%SZ) 2>/dev/null || true; curl -fsSL 'https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/script/xstartup' -o /tmp/xstartup.$$ && chmod +x /tmp/xstartup.$$ && cp -f /tmp/xstartup.$$ /home/debian/.vnc/xstartup )
 
 USER root
 RUN ln -s /home/debian/Downloads /mnt1 && sed -i '/@include common-auth/a auth       optional   pam_gnome_keyring.so' /etc/pam.d/login && sed -i '/@include common-session/a session    optional   pam_gnome_keyring.so auto_start' /etc/pam.d/login
