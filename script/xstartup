@@ -1,0 +1,48 @@
+
+[ -r $HOME/.Xresources ] && xrdb $HOME/.Xresources
+test x"$SHELL" = x"" && SHELL=/bin/bash
+test x"$1" = x"" && set -- default
+xhost +
+
+sudo -u debian -i bash <<'EOF'
+export DISPLAY=:1
+export XAUTHORITY=/home/debian/.Xauthority
+
+detect_butt() {
+    # Wait until AppImage appears (system is fully initialized)
+    while ! find /usr/local/bin -maxdepth 1 -name 'butt*.AppImage' -print -quit | grep -q .; do
+        sleep 5
+    done
+}
+
+vncconfig -iconic &
+
+gsettings set org.gnome.shell favorite-apps "['firefox.desktop', 'org.gnome.Evolution.desktop', 'org.gnome.Nautilus.desktop', 'org.kde.discover.desktop', 'xfce4-terminal.desktop', 'org.gnome.TextEditor.desktop', 'org.gnome.Calculator.desktop']"
+gsettings set org.gnome.desktop.session idle-delay 0
+gsettings set org.gnome.desktop.screensaver lock-enabled false
+gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+gsettings set org.gnome.desktop.background show-desktop-icons true
+gnome-extensions enable ding@rastersoft.com
+
+butt -c /home/debian/butt.txt >/dev/null 2>&1 &
+
+
+[ ! -f /tmp/keyring_reset.lock ] && ( detect_butt  && sleep 10 && sudo rm -rf ~/.local/share/keyrings/login.keyring && touch /tmp/keyring_reset.lock && touch /home/debian/.local/share/keyrings/login.keyring && chmod 400 /home/debian/.local/share/keyrings/login.keyring ) &
+( mkdir -p "$HOME/Desktop" ; while true; do for f in firefox.desktop org.gnome.Console.desktop xfce4-terminal.desktop org.kde.discover.desktop com.github.tchx84.Flatseal.desktop org.gnome.seahorse.Application.desktop org.gnome.tweaks.desktop com.mattjakeman.ExtensionManager.desktop; do src="/usr/share/applications/$f"; [ -f "$src" ] && cp -f "$src" "$HOME/Desktop/"; done; chmod +x "$HOME/Desktop"/*.desktop 2>/dev/null || true; sleep 10; done ) & disown
+( detect_butt  && sleep 10 && /usr/local/bin/butt*.AppImage -c /home/debian/buttweb.txt & ) &
+[ ! -f /tmp/keyring_reset.lock ] && ( detect_butt && sleep 10 && /usr/libexec/gnome-initial-setup & ) &
+( current_lang=$(localectl status | grep 'System Locale' | cut -d'=' -f2); while sleep 10; do new_lang=$(localectl status | grep 'System Locale' | cut -d'=' -f2); sys_lang=$(cat /etc/default/locale 2>/dev/null | grep LANG= | cut -d'=' -f2 | tr -d '"'); [ "$current_lang" != "$new_lang" ] || [ "$current_lang" != "$sys_lang" ] && echo "export DEFAULT_LANG='$new_lang'" | sudo tee /etc/profile.d/00docker-env.sh > /dev/null && kill $(cat /home/debian/.vnc/$(hostname):1.pid) && exit; current_lang="$new_lang"; done ) &
+
+
+export XDG_SESSION_TYPE=x11
+mkdir -p /home/debian/.vnc && pgrep Xtigervnc > /home/debian/.vnc/$(hostname):1.pid
+lang_val=$(grep '^export DEFAULT_LANG=' /etc/profile.d/00docker-env.sh 2>/dev/null | cut -d"'" -f2); [ -n "$lang_val" ] && export LANG="$lang_val"
+exec gnome-session
+
+
+
+
+
+EOF
+
+vncserver -kill $DISPLAY
