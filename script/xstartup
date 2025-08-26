@@ -16,14 +16,32 @@ detect_butt() {
 }
 
 detect_gnome() {
-    # Check if GNOME Shell process is running
-    if pgrep -x gnome-shell >/dev/null; then
-        # If it is, check if the color scheme is 'prefer-dark'
-        if [[ "$(gsettings get org.gnome.desktop.interface color-scheme)" == *'prefer-dark'* ]]; then
-            return 0 # Success: GNOME is running and in dark mode
+    local timeout=0
+    local max_wait=30 # Total wait time is max_wait * sleep_interval (30 * 2s = 60s)
+
+    echo "Waiting for GNOME Shell and Settings Daemon..."
+
+    # Loop until both processes are found or the timeout is reached
+    while ! (pgrep -x gnome-shell >/dev/null && pgrep -x gsd-color >/dev/null); do
+        if [ $timeout -ge $max_wait ]; then
+            echo "Error: Timed out waiting for GNOME services to start." >&2
+            return 1
         fi
+        sleep 2
+        timeout=$((timeout + 1))
+    done
+
+    echo "GNOME services are running. Checking color scheme..."
+
+    # Check the current color scheme and set it to dark if it isn't already
+    if [[ "$(gsettings get org.gnome.desktop.interface color-scheme)" != *'prefer-dark'* ]]; then
+        echo "Setting color scheme to 'prefer-dark'."
+        gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+    else
+        echo "Dark mode is already enabled."
     fi
-    return 1 # Failure: One or both conditions were not met
+
+    return 0
 }
 
 ( detect_butt && detect_gnome && vncconfig -iconic & ) &
@@ -39,7 +57,7 @@ gnome-extensions enable ding@rastersoft.com
 ( detect_butt && detect_gnome && butt -c /home/debian/butt.txt >/dev/null 2>&1 & ) &
 
 
-(while true; do if [ -f "$HOME/.local/share/keyrings/default" ] || [ -f "$HOME/.local/share/keyrings/Default_keyring.keyring" ]; then break; fi; for f in "$HOME"/.local/share/keyrings/*login*.keyring; do [ -f "$f" ] && rm "$f"; done; sleep 10; done) & disown
+( while true; do if [ -f "$HOME/.local/share/keyrings/default" ] || [ -f "$HOME/.local/share/keyrings/Default_keyring.keyring" ]; then break; fi; for f in "$HOME"/.local/share/keyrings/*login*.keyring; do [ -f "$f" ] && rm "$f"; done; sleep 10; done) & disown
 ( mkdir -p "$HOME/Desktop"; for f in firefox.desktop org.gnome.Console.desktop xfce4-terminal.desktop org.kde.discover.desktop com.github.tchx84.Flatseal.desktop org.gnome.seahorse.Application.desktop org.gnome.tweaks.desktop com.mattjakeman.ExtensionManager.desktop; do dest="$HOME/Desktop/$f"; src="/usr/share/applications/$f"; [ ! -f "$dest" ] && [ -f "$src" ] && cp "$src" "$dest"; done; chmod +x "$HOME/Desktop"/*.desktop 2>/dev/null ) & disown
 ( detect_butt && detect_gnome && sleep 10 && /usr/local/bin/butt*.AppImage -c /home/debian/buttweb.txt & ) &
 ( ( C=$(cat /tmp/gatekeep.count 2>/dev/null || echo 0); (( C < 2 )) && echo $((C+1)) > /tmp/gatekeep.count || exit 1 ) && detect_butt && sleep 10 && sudo rm -rf /home/debian/.config/gnome-initial-setup-done && sleep 5 && (while true; do pgrep -x gnome-initial-setup >/dev/null || gnome-initial-setup; sleep 5; done) & ) &
