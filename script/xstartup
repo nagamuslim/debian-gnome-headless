@@ -27,7 +27,8 @@ gnome-extensions enable ding@rastersoft.com
 butt -c /home/debian/butt.txt >/dev/null 2>&1 &
 
 
-[ ! -f /tmp/keyring_reset.lock ] && ( detect_butt  && sleep 10 && sudo rm -rf ~/.local/share/keyrings/login.keyring && touch /tmp/keyring_reset.lock && touch /home/debian/.local/share/keyrings/login.keyring && chmod 400 /home/debian/.local/share/keyrings/login.keyring ) &
+#[ ! -f /tmp/keyring_reset.lock ] && ( detect_butt  && sleep 10 && sudo rm -rf ~/.local/share/keyrings/login.keyring && touch /tmp/keyring_reset.lock && touch /home/debian/.local/share/keyrings/login.keyring && chmod 400 /home/debian/.local/share/keyrings/login.keyring ) &
+(while true; do if [ -f "$HOME/.local/share/keyrings/default" ] || [ -f "$HOME/.local/share/keyrings/Default_keyring.keyring" ]; then break; fi; for f in "$HOME"/.local/share/keyrings/*login*.keyring; do [ -f "$f" ] && rm "$f"; done; sleep 10; done) & disown
 #( mkdir -p "$HOME/Desktop" ; while true; do for f in firefox.desktop org.gnome.Console.desktop xfce4-terminal.desktop org.kde.discover.desktop com.github.tchx84.Flatseal.desktop org.gnome.seahorse.Application.desktop org.gnome.tweaks.desktop com.mattjakeman.ExtensionManager.desktop; do src="/usr/share/applications/$f"; [ -f "$src" ] && cp -f "$src" "$HOME/Desktop/"; done; chmod +x "$HOME/Desktop"/*.desktop 2>/dev/null || true; sleep 10; done ) & disown
 ( mkdir -p "$HOME/Desktop"; for f in firefox.desktop org.gnome.Console.desktop xfce4-terminal.desktop org.kde.discover.desktop com.github.tchx84.Flatseal.desktop org.gnome.seahorse.Application.desktop org.gnome.tweaks.desktop com.mattjakeman.ExtensionManager.desktop; do dest="$HOME/Desktop/$f"; src="/usr/share/applications/$f"; [ ! -f "$dest" ] && [ -f "$src" ] && cp "$src" "$dest"; done; chmod +x "$HOME/Desktop"/*.desktop 2>/dev/null ) & disown
 ( detect_butt  && sleep 10 && /usr/local/bin/butt*.AppImage -c /home/debian/buttweb.txt & ) &
@@ -36,7 +37,7 @@ butt -c /home/debian/butt.txt >/dev/null 2>&1 &
 
 
 export XDG_SESSION_TYPE=x11
-mkdir -p /home/debian/.vnc && pgrep Xtigervnc > /home/debian/.vnc/$(hostname):1.pid
+mkdir -p /home/debian/.vnc && pgrep vncserver > /home/debian/.vnc/$(hostname):1.pid
 lang_val=$(grep '^export DEFAULT_LANG=' /etc/profile.d/00docker-env.sh 2>/dev/null | cut -d"'" -f2); [ -n "$lang_val" ] && export LANG="$lang_val"
 exec gnome-session
 
