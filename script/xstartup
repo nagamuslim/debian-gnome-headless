@@ -3,8 +3,8 @@
 test x"$SHELL" = x"" && SHELL=/bin/bash
 test x"$1" = x"" && set -- default
 xhost +
-
-sudo -u debian -i bash <<'EOF'
+sudo -u debian -i bash -x >>/home/debian/xstartup.log 2>&1 <<'EOF'
+#sudo -u debian -i bash <<'EOF'
 export DISPLAY=:1
 export XAUTHORITY=/home/debian/.Xauthority
 
