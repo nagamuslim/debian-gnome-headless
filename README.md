@@ -115,7 +115,7 @@ You can customize the container by setting the following environment variables:
 ## Screenshots
 
 ### Home Screen
-![Home Screen](image/home screen.png)
+![Home Screen](https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/image/home%20screen.png)
 
 ### Applications Menu
-![Applications Menu](image/app menu.png)
+![Applications Menu](https://raw.githubusercontent.com/nagamuslim/debian-gnome-headless/main/image/app%20menu.png)
