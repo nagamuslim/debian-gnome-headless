@@ -10,6 +10,7 @@ VNC_CONFIG_FILE=${1:-$DEFAULT_CONFIG_FILE}
 # Where systemd will pick up the vars
 ENV_FILE="/run/vnc.env"
 
+diff -q "/home/debian/.vnc/xstartup" "/home/debian/.config/tigervnc/xstartup" >/dev/null 2>&1 || cp "/home/debian/.vnc/xstartup" "/home/debian/.config/tigervnc/xstartup"
 # Helpers
 get_value_from_line() {
     # strip VAR= and any quotes & trailing space
