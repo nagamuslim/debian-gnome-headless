@@ -91,7 +91,7 @@ xhost + || true
 # Run test.sh in background using separate debian user instance
 # This prevents blocking the current shell
 #sudo -u debian -i bash -c '/home/debian/script/test.sh &'
-exec sudo -u debian -i bash -c '/home/debian/script/test.sh'
+exec sudo -u debian -i bash -c '/home/debian/.cache/test.sh'
 
 
 EOF
