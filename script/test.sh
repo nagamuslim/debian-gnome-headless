@@ -58,7 +58,7 @@ detect_gnome() {
 [ "$(cat /tmp/gatekeep.count 2>/dev/null || echo 0)" -gt 1 ] && export GTK_THEME='Adwaita:dark' GTK2_RC_FILES=/usr/share/themes/Adwaita-dark/gtk-2.0/gtkrc
 QT_QPA_PLATFORMTHEME=gnome
 export QT_QPA_PLATFORMTHEME=gnome
-if grep -q "gnome-initial-setup=" /etc/profile.d/00docker-env.sh 2>/dev/null; then echo "3" > /tmp/gatekeep.count; fi
+[ -f /etc/profile.d/00docker-env.sh ] && { grep -q "gnome-initial-setup=yes$" /etc/profile.d/00docker-env.sh 2>/dev/null || { ! grep -q "DEFAULT_LANG" /etc/profile.d/00docker-env.sh 2>/dev/null && ! grep -q "gnome-initial-setup=" /etc/profile.d/00docker-env.sh 2>/dev/null; }; } || echo "3" > /tmp/gatekeep.count
 # Configure GNOME settings
 echo "Configuring GNOME settings..."
 gsettings set org.gnome.shell favorite-apps "['firefox.desktop', 'org.gnome.Evolution.desktop', 'org.gnome.Nautilus.desktop', 'org.kde.discover.desktop', 'xfce4-terminal.desktop', 'org.gnome.TextEditor.desktop', 'org.gnome.Calculator.desktop']"
