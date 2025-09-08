@@ -143,7 +143,7 @@ gnome-extensions enable ding@rastersoft.com
 
 # Set session type and language
 export XDG_SESSION_TYPE=x11
-lang_val=$(grep '^export DEFAULT_LANG=' /etc/profile.d/00docker-env.sh 2>/dev/null | cut -d"'" -f2)
+lang_val=$(sed -nE "s/^\s*#?\s*export[[:space:]]+DEFAULT_LANG=['\"]?([^'\" ]+)['\"]?/\1/p" /etc/profile.d/00docker-env.sh)
 [ -n "$lang_val" ] && export LANG="$lang_val"
 
 echo "Starting GNOME session..."
