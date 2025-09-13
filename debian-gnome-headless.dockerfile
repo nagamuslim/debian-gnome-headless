@@ -34,7 +34,7 @@ RUN apt-get update && HOME=/home/debian apt-get install -y \
     vlc \
     ffmpeg \
     yt-dlp \
-    7zip-full \
+    p7zip-full \
     7zip-rar \
     butt \
     flatseal \
