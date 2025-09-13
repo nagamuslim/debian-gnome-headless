@@ -34,8 +34,8 @@ RUN apt-get update && HOME=/home/debian apt-get install -y \
     vlc \
     ffmpeg \
     yt-dlp \
-    p7zip-full \
-    p7zip-rar \
+    7zip-full \
+    7zip-rar \
     butt \
     flatseal \
     xfce-polkit \
