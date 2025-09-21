@@ -134,8 +134,7 @@ RUN chmod u+x ~/.vnc/xstartup && \
 
 # Layer 5: Switch back to root for system configurations
 USER root
-RUN # Mask user services for pipewire/pulseaudio
-    set -eux; \
+RUN set -eux; \
     for svc in \
         pipewire.service \
         pipewire-pulse.service \
@@ -161,8 +160,7 @@ RUN # Mask user services for pipewire/pulseaudio
     sed -i.bak '/<\/head>/i\ \ \ \ \<script src="novnc-mediamtx-audio.js" defer></script>' /usr/share/novnc/vnc.html
 
 # Layer 6: SSH keys, systemd services, and final configuration
-RUN # Generate SSH keys
-    set -eux; \
+RUN set -eux; \
     mkdir -p /home/debian/.ssh /root/.ssh; \
     ssh-keygen -t ed25519 -C "debian-to-ubuntu-key" -f /home/debian/.ssh/id_ed25519 -N ""; \
     ssh-keygen -t ed25519 -C "root-to-ubuntu-key" -f /root/.ssh/id_ed25519 -N ""; \
