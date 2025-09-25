@@ -139,10 +139,8 @@ RUN set -eux; \
         pipewire.service \
         pipewire-pulse.service \
         wireplumber.service \
-        pulseaudio.service \
         pipewire.socket \
         pipewire-pulse.socket \
-        pulseaudio.socket \
     ; do \
         XDG_RUNTIME_DIR=/run/user/2000 \
         runuser -u debian -- systemctl --user mask "$svc"; \
