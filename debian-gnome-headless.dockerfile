@@ -15,6 +15,7 @@ RUN apt-get update && HOME=/home/debian apt-get install -y \
     novnc \
     nginx-extras \
     nginx \
+    socat \
     libfuse2 \
     tigervnc-standalone-server \
     $(apt show gnome-core | sed -n '/^Depends: /{:a;N;/\n[^ ]/!ba;s/\n[^ ].*$//;s/^Depends: //;p}' | sed 's/ ([^)]*)//g;s/[,\|]/ /g;s/  */ /g;s/ $//' | \tr ' ' '\n' | grep -v '^pipewire-audio$' | tr '\n' ' ' | sed 's/ $//') \
@@ -155,10 +156,10 @@ RUN set -eux; \
     # Set installer environment
     echo "app='$(curl -s https://api.github.com/repos/bluenviron/mediamtx/releases/latest | jq -r '.assets[] | select(.name | test("mediamtx_v.*_linux_amd64\\.tar\\.gz$")) | .browser_download_url') https://danielnoethen.de/butt/release/1.45.0/butt-1.45.0-x86_64.AppImage'" | tee /etc/installer.env && \
     # Modify noVNC HTML
-    sed -i.bak '/<\/head>/i\ \ \ \ \<script src="novnc-mediamtx-audio.js" defer></script>' /usr/share/novnc/vnc.html
-
-# Layer 6: SSH keys, systemd services, and final configuration
-RUN set -eux; \
+    sed -i.bak '/<\/head>/i\ \ \ \ \<script src="novnc-mediamtx-audio.js" defer></script>' /usr/share/novnc/vnc.html && \
+    echo 'mkdir -p /root/.config/pulse && cp /home/debian/.config/pulse/cookie /root/.config/pulse/ 2>/dev/null' >> /root/.bashrc && echo 'export PULSE_SERVER=/run/user/2000/pulse/native' >> /root/.bashrc && \
+    echo "nohup socat TCP-LISTEN:6001,reuseaddr,fork,bind=0.0.0.0 UNIX-CONNECT:/tmp/.X11-unix/X1 > /tmp/socat-x1.log 2>&1 & disown" > /home/debian/.vnc/xstartup.orig && \
+    set -eux; \
     mkdir -p /home/debian/.ssh /root/.ssh; \
     ssh-keygen -t ed25519 -C "debian-to-ubuntu-key" -f /home/debian/.ssh/id_ed25519 -N ""; \
     ssh-keygen -t ed25519 -C "root-to-ubuntu-key" -f /root/.ssh/id_ed25519 -N ""; \
@@ -168,7 +169,7 @@ RUN set -eux; \
     chmod 600 /home/debian/.ssh/id_ed25519; \
     chmod 644 /home/debian/.ssh/id_ed25519.pub && \
     # Configure PulseAudio system-wide
-    echo "load-module module-simple-protocol-tcp listen=0.0.0.0 source=auto_null.monitor record=true port=4713 rate=48000" >> /etc/pulse/system.pa && \
+    echo "load-module module-native-protocol-tcp listen=0.0.0.0 source=auto_null.monitor port=4713 rate=48000 auth-anonymous=1" >> /etc/pulse/default.pa && \
     # Create VNC service
     echo -e "\n[Unit]\nDescription=Start TightVNC server at startup\nAfter=network.target\n\n[Service]\nType=forking\nUser=debian\nGroup=debian\nWorkingDirectory=/home/debian\nEnvironmentFile=-/run/vnc.env\nEnvironment=EDITOR=nano\nEnvironment=HOME=/home/debian\nEnvironment=USER=debian\nEnvironment=DISPLAY=:1\n\n\nExecStartPre=+/home/debian/.cache/res.sh\nExecStart=/usr/bin/vncserver -geometry \${GEOMETRY} -depth 24 -localhost :%i\n\nExecStop=/usr/bin/vncserver -kill :%i\nExecStopPost=/bin/sh -c '/bin/rm -f /home/debian/.vnc/%H:%i.pid /home/debian/.config/tigervnc/%H:%i.pid'\nTimeoutStartSec=infinity\nTimeoutStopSec=infinity\nRestart=always\nRestartSec=20\n[Install]\nWantedBy=multi-user.target" > /etc/systemd/system/vncserver@.service && \
     # Create WebSockify service
