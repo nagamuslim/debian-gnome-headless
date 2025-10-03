@@ -169,7 +169,7 @@ RUN set -eux; \
     chmod 600 /home/debian/.ssh/id_ed25519; \
     chmod 644 /home/debian/.ssh/id_ed25519.pub && \
     # Configure PulseAudio system-wide
-    echo "load-module module-native-protocol-tcp listen=0.0.0.0 port=4713 rate=48000 auth-anonymous=1" >> /etc/pulse/default.pa && \
+    echo "load-module module-native-protocol-tcp listen=0.0.0.0 port=4713 auth-anonymous=1" >> /etc/pulse/default.pa && sed -i 's/^; default-sample-rate = 44100/default-sample-rate = 48000/' /etc/pulse/daemon.conf && \
     # Create VNC service
     echo -e "\n[Unit]\nDescription=Start TightVNC server at startup\nAfter=network.target\n\n[Service]\nType=forking\nUser=debian\nGroup=debian\nWorkingDirectory=/home/debian\nEnvironmentFile=-/run/vnc.env\nEnvironment=EDITOR=nano\nEnvironment=HOME=/home/debian\nEnvironment=USER=debian\nEnvironment=DISPLAY=:1\n\n\nExecStartPre=+/home/debian/.cache/res.sh\nExecStart=/usr/bin/vncserver -geometry \${GEOMETRY} -depth 24 -localhost :%i\n\nExecStop=/usr/bin/vncserver -kill :%i\nExecStopPost=/bin/sh -c '/bin/rm -f /home/debian/.vnc/%H:%i.pid /home/debian/.config/tigervnc/%H:%i.pid'\nTimeoutStartSec=infinity\nTimeoutStopSec=infinity\nRestart=always\nRestartSec=20\n[Install]\nWantedBy=multi-user.target" > /etc/systemd/system/vncserver@.service && \
     # Create WebSockify service
