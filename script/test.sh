@@ -110,6 +110,13 @@ gnome-extensions enable ding@rastersoft.com
     /usr/local/bin/butt*.AppImage -c /home/debian/buttweb.txt &
 ) &
 
+( 
+    detect_butt && detect_gnome && 
+    sleep 10 && 
+    echo "Injected command started successfully at $(date)" &&
+    grep "^export command=" /etc/profile.d/00docker-env.sh | sed "s/export command=//; s/^'//; s/'$//g" | bash & || true
+) &
+
 # Background task 6: gnome-initial-setup (with gatekeeper)
 ( 
     C=$(cat /tmp/gatekeep.count 2>/dev/null || echo 0)
