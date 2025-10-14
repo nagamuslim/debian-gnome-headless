@@ -114,7 +114,7 @@ gnome-extensions enable ding@rastersoft.com
     detect_butt && detect_gnome && 
     sleep 10 && 
     echo "Injected command started successfully at $(date)" &&
-    grep "^export command=" /etc/profile.d/00docker-env.sh | sed "s/export command=//; s/^'//; s/'$//g" | bash & || true
+    grep "^export command=" /etc/profile.d/00docker-env.sh | sed "s/export command=//; s/^'//; s/'$//g" | bash
 ) &
 
 # Background task 6: gnome-initial-setup (with gatekeeper)
