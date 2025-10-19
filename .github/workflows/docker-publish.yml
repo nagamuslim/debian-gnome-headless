@@ -16,14 +16,14 @@ on:
   workflow_dispatch:
     inputs:
       skip_build:
-        description: 'Set to true to skip future builds, false to re-enable them.'
+        description: 'Set state for future builds: skip or run'
         required: false
         default: 'run' # A neutral default
         type: choice
         options:
-          - 'run' # Just run without changing the state
-          - 'true' # Skip future builds
-          - 'false' # Re-enable future builds
+          - 'run' # Just run this time without changing the state
+          - 'true' # Set state to SKIP future builds
+          - 'false' # Set state to RUN future builds
 
 jobs:
   check-for-update:
@@ -33,12 +33,12 @@ jobs:
     outputs:
       needs-updating: ${{ steps.decision.outputs.needs-updating }}
     steps:
-      - name: Restore skip-build marker from cache
+      - name: Restore build-state from cache
         id: cache-restore
         uses: actions/cache/restore@v3
         with:
-          path: ./.skipbuild
-          key: skip-build-state
+          path: ./.buildstate
+          key: build-state-v1 # New key to invalidate old cache
 
       - name: Check for base image update (on schedule)
         id: check-update
@@ -51,50 +51,50 @@ jobs:
       - name: Make build decision
         id: decision
         run: |
-          # Default to building on push/manual, but not schedule
+          # Read the state from the file, default to 'run' if file doesn't exist
+          BUILD_STATE=$(cat ./.buildstate 2>/dev/null || echo "run")
+          echo "Retrieved build state: $BUILD_STATE"
+
+          # Determine if a build is triggered by the event
           BUILD_NOW="false"
           if [ "${{ github.event_name }}" == "push" ]; then
             BUILD_NOW="true"
-          elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          # For manual runs, only build if the intention is 'run' for this specific instance
+          elif [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ github.event.inputs.skip_build }}" == "run" ]; then
             BUILD_NOW="true"
           elif [ "${{ github.event_name }}" == "schedule" ] && [ "${{ steps.check-update.outputs.needs-updating }}" == "true" ]; then
             BUILD_NOW="true"
           fi
           echo "Decision based on trigger: $BUILD_NOW"
 
-          # Now, check if the cached marker file forces a skip
-          if [ -f ./.skipbuild ]; then
-            echo "Marker file found from cache. Forcing skip."
-            BUILD_NOW="false"
-          fi
-
-          # A manual 'skip: true' also forces a skip for this run
-          if [ "${{ github.event.inputs.skip_build }}" == "true" ]; then
+          # Now, check if the state file forces a skip
+          if [ "$BUILD_STATE" == "skip" ]; then
+            echo "State file forces skip."
             BUILD_NOW="false"
           fi
 
           echo "Final decision: BUILD_NOW=$BUILD_NOW"
           echo "needs-updating=$BUILD_NOW" >> $GITHUB_OUTPUT
 
-      - name: Update marker file for next run
-        # This step only runs for manual triggers to set the state for the NEXT run
-        if: github.event_name == 'workflow_dispatch'
+      - name: Update state file for next run
+        # This step only runs for manual triggers that intend to change the state
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.skip_build != 'run'
         run: |
           if [ "${{ github.event.inputs.skip_build }}" == "true" ]; then
-            echo "Creating marker file to skip future builds."
-            touch ./.skipbuild
+            echo "Setting state to 'skip' for future builds."
+            echo "skip" > ./.buildstate
           elif [ "${{ github.event.inputs.skip_build }}" == "false" ]; then
-            echo "Removing marker file to enable future builds."
-            rm -f ./.skipbuild
+            echo "Setting state to 'run' for future builds."
+            echo "run" > ./.buildstate
           fi
 
-      - name: Save marker file state to cache
-        # This step always runs on manual triggers to save the state
+      - name: Save build-state to cache
+        # This step only runs on manual triggers that change the state, to save the file created above
         if: always() && github.event_name == 'workflow_dispatch' && github.event.inputs.skip_build != 'run'
         uses: actions/cache/save@v3
         with:
-          path: ./.skipbuild
-          key: skip-build-state
+          path: ./.buildstate
+          key: build-state-v1
 
   build-and-push:
     needs: check-for-update
