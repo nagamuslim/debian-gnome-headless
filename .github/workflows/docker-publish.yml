@@ -12,62 +12,93 @@ on:
   schedule:
     - cron: '0 4 * * *'
 
-  # TRIGGER 3: Allows you to run it manually with an option to skip
+  # TRIGGER 3: Allows you to run it manually with an option to skip or re-enable
   workflow_dispatch:
     inputs:
       skip_build:
-        description: 'Skip build and push'
+        description: 'Set to true to skip future builds, false to re-enable them.'
         required: false
-        default: 'false'
+        default: 'run' # A neutral default
         type: choice
         options:
-          - 'false'
-          - 'true'
+          - 'run' # Just run without changing the state
+          - 'true' # Skip future builds
+          - 'false' # Re-enable future builds
 
 jobs:
   check-for-update:
-    # This entire workflow run will be skipped if manually triggered with skip_build = 'true'
-    if: github.event.inputs.skip_build != 'true'
     runs-on: ubuntu-latest
     env:
       DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME || github.actor }}
     outputs:
-      needs-updating: ${{ steps.final.outputs.needs-updating }}
+      needs-updating: ${{ steps.decision.outputs.needs-updating }}
     steps:
-      - name: "Short-circuit for non-schedule (force build on push/manual)"
-        id: default
-        run: |
-          if [ "${{ github.event_name }}" != "schedule" ]; then
-            echo "needs-updating=true" >> $GITHUB_OUTPUT
-          else
-            # leave blank for schedule case; we'll set in final step
-            echo "needs-updating=" >> $GITHUB_OUTPUT
-          fi
+      - name: Restore skip-build marker from cache
+        id: cache-restore
+        uses: actions/cache/restore@v3
+        with:
+          path: ./.skipbuild
+          key: skip-build-state
 
-      - name: "Check if base image has been updated (only on schedule)"
-        id: check
-        if: ${{ github.event_name == 'schedule' }}
+      - name: Check for base image update (on schedule)
+        id: check-update
+        if: github.event_name == 'schedule'
         uses: lucacome/docker-image-update-checker@v2.0.0
         with:
           base-image: minimum2scp/systemd:latest
           image: ${{ env.DOCKER_USER }}/debian-gnome-headless:latest
 
-      - name: "Finalize job output"
-        id: final
+      - name: Make build decision
+        id: decision
         run: |
-          if [ "${{ github.event_name }}" == "schedule" ]; then
-            # use the checker's output
-            echo "needs-updating=${{ steps.check.outputs.needs-updating }}" >> $GITHUB_OUTPUT
-          else
-            # non-schedule -> build
-            echo "needs-updating=true" >> $GITHUB_OUTPUT
+          # Default to building on push/manual, but not schedule
+          BUILD_NOW="false"
+          if [ "${{ github.event_name }}" == "push" ]; then
+            BUILD_NOW="true"
+          elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            BUILD_NOW="true"
+          elif [ "${{ github.event_name }}" == "schedule" ] && [ "${{ steps.check-update.outputs.needs-updating }}" == "true" ]; then
+            BUILD_NOW="true"
           fi
+          echo "Decision based on trigger: $BUILD_NOW"
+
+          # Now, check if the cached marker file forces a skip
+          if [ -f ./.skipbuild ]; then
+            echo "Marker file found from cache. Forcing skip."
+            BUILD_NOW="false"
+          fi
+
+          # A manual 'skip: true' also forces a skip for this run
+          if [ "${{ github.event.inputs.skip_build }}" == "true" ]; then
+            BUILD_NOW="false"
+          fi
+
+          echo "Final decision: BUILD_NOW=$BUILD_NOW"
+          echo "needs-updating=$BUILD_NOW" >> $GITHUB_OUTPUT
+
+      - name: Update marker file for next run
+        # This step only runs for manual triggers to set the state for the NEXT run
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [ "${{ github.event.inputs.skip_build }}" == "true" ]; then
+            echo "Creating marker file to skip future builds."
+            touch ./.skipbuild
+          elif [ "${{ github.event.inputs.skip_build }}" == "false" ]; then
+            echo "Removing marker file to enable future builds."
+            rm -f ./.skipbuild
+          fi
+
+      - name: Save marker file state to cache
+        # This step always runs on manual triggers to save the state
+        if: always() && github.event_name == 'workflow_dispatch' && github.event.inputs.skip_build != 'run'
+        uses: actions/cache/save@v3
+        with:
+          path: ./.skipbuild
+          key: skip-build-state
 
   build-and-push:
     needs: check-for-update
-    # Runs if triggered by a push OR if the check job found an update.
-    # This job will be skipped automatically if 'check-for-update' is skipped.
-    if: github.event_name != 'schedule' || needs.check-for-update.outputs.needs-updating == 'true'
+    if: needs.check-for-update.outputs.needs-updating == 'true'
     runs-on: ubuntu-latest
     env:
       DOCKERFILE_PATH: "debian-gnome-headless.dockerfile"
