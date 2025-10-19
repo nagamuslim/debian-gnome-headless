@@ -158,7 +158,7 @@ gnome-extensions enable ding@rastersoft.com
                 # Append if doesn't exist
                 echo "export DEFAULT_LANG='$new_lang'" | sudo tee -a /etc/profile.d/00docker-env.sh > /dev/null
             fi
-            killall vncserver
+            gnome-session-quit --logout --no-prompt
             exit
         fi
         current_lang="$new_lang"
