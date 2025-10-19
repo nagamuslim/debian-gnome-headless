@@ -28,6 +28,7 @@ RUN apt-get update && HOME=/home/debian apt-get install -y \
     pavucontrol \
     icecast2 \
     wget \
+    x11vnc \
     gnome-settings-* \
     $(apt list gnome-shell-* | cut -d'/' -f1 | grep gnome- | grep -v 'gnome-shell-extension-gamemode' | grep -v 'gnome-shell-extension-weather' | \grep -v 'gnome-shell-extension-panel-osd' | grep -v 'gnome-shell-extension-vertical-overview' | tr '\n' ' ') \
     xfce4-terminal \

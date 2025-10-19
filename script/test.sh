@@ -3,7 +3,7 @@
 echo() {
   # Use 'builtin echo' to run the original echo command,
   # then pipe its output to 'systemd-cat' which correctly associates it with the parent service.
-  builtin echo "$@" | systemd-cat -t echo
+  builtin echo "$@" | systemd-cat -t test.sh
 }
 # /home/debian/script/test.sh
 # Direct logging with set -x
@@ -162,6 +162,220 @@ gnome-extensions enable ding@rastersoft.com
             exit
         fi
         current_lang="$new_lang"
+    done
+) &
+
+# Background task: Dynamic second monitor with x11vnc/websockify
+(
+    detect_gnome || exit 1
+    
+    SECOND_MONITOR_ACTIVE=false
+    X11VNC_PID=""
+    WEBSOCKIFY_PID=""
+    CHECK_INTERVAL=10
+    
+    # Function to get resolution from res.sh or default to 720p
+    get_resolution() {
+        local width height
+        
+        # Try to read from /run/vnc.env (set by res.sh)
+        if [ -f /run/vnc.env ]; then
+            local geom=$(grep "^GEOMETRY=" /run/vnc.env | cut -d'=' -f2)
+            if [ -n "$geom" ]; then
+                width=$(echo "$geom" | cut -d'x' -f1)
+                height=$(echo "$geom" | cut -d'x' -f2)
+                echo "${width}x${height}"
+                return
+            fi
+        fi
+        
+        # Try to parse from /etc/profile.d/00docker-env.sh
+        if [ -f /etc/profile.d/00docker-env.sh ]; then
+            local res_val=$(grep "^export res=" /etc/profile.d/00docker-env.sh | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+            if [ -n "$res_val" ]; then
+                case "$res_val" in
+                    [0-9]*x[0-9]*)
+                        echo "$res_val"
+                        return
+                        ;;
+                    720p|hd)
+                        echo "1280x720"
+                        return
+                        ;;
+                    1080p|fhd)
+                        echo "1920x1080"
+                        return
+                        ;;
+                    1440p|qhd)
+                        echo "2560x1440"
+                        return
+                        ;;
+                    800p)
+                        echo "1280x800"
+                        return
+                        ;;
+                esac
+            fi
+        fi
+        
+        # Default to 720p
+        echo "1280x720"
+    }
+    
+    echo "Starting dynamic second monitor service..."
+    
+    # Function to check if there are waiting/active connections
+    check_for_connections() {
+        # Check for TCP connections on ports we want to serve
+        # Port 5903: x11vnc for second monitor
+        # Port 6903: websockify for second monitor web access
+        
+        # Check if any client is connected or listening for these ports
+        local x11vnc_conn=$(ss -tn state established "( sport = :5903 )" 2>/dev/null | grep -c ESTAB)
+        local websock_conn=$(ss -tn state established "( sport = :6903 )" 2>/dev/null | grep -c ESTAB)
+        
+        # Also check for incoming connections (SYN-RECV state)
+        local x11vnc_waiting=$(ss -tn state syn-recv "( sport = :5903 )" 2>/dev/null | grep -c SYN-RECV)
+        local websock_waiting=$(ss -tn state syn-recv "( sport = :6903 )" 2>/dev/null | grep -c SYN-RECV)
+        
+        local total=$((x11vnc_conn + websock_conn + x11vnc_waiting + websock_waiting))
+        
+        echo "$total"
+    }
+    
+    # Function to create second monitor and start services
+    start_second_monitor() {
+        echo "[$(date)] Creating second monitor VNC-1..."
+        
+        # Get resolution from res.sh
+        local resolution=$(get_resolution)
+        local width=$(echo "$resolution" | cut -d'x' -f1)
+        local height=$(echo "$resolution" | cut -d'x' -f2)
+        local total_width=$((width * 2))
+        
+        echo "[$(date)] Using resolution: ${resolution} (total framebuffer: ${total_width}x${height})"
+        
+        # Check if VNC-1 already exists
+        if ! xrandr --listmonitors | grep -q "VNC-1"; then
+            # Expand framebuffer first
+            if xrandr --fb ${total_width}x${height} 2>/dev/null; then
+                echo "[$(date)] Framebuffer expanded to ${total_width}x${height}"
+                sleep 1
+            else
+                echo "[$(date)] Warning: Could not expand framebuffer"
+            fi
+            
+            # Create second monitor positioned to the right of first
+            if xrandr --setmonitor VNC-1 ${width}x${height}+${width}+0 none 2>/dev/null; then
+                echo "[$(date)] VNC-1 monitor created at ${width}x${height}+${width}+0"
+                sleep 2
+            else
+                echo "[$(date)] Failed to create VNC-1 monitor"
+                return 1
+            fi
+        else
+            echo "[$(date)] VNC-1 already exists"
+        fi
+        
+        # Start x11vnc for second monitor if not running
+        if [ -z "$X11VNC_PID" ] || ! kill -0 "$X11VNC_PID" 2>/dev/null; then
+            echo "[$(date)] Starting x11vnc for VNC-1 (${width}x${height}+${width}+0)..."
+            x11vnc -display :1 \
+                   -clip ${width}x${height}+${width}+0 \
+                   -rfbport 5902 \
+                   -forever \
+                   -shared \
+                   -nopw \
+                   -bg \
+                   -o /tmp/x11vnc-vnc1.log \
+                   -pid /tmp/x11vnc-vnc1.pid
+            
+            # Get PID
+            sleep 1
+            if [ -f /tmp/x11vnc-vnc1.pid ]; then
+                X11VNC_PID=$(cat /tmp/x11vnc-vnc1.pid)
+                echo "[$(date)] x11vnc started with PID: $X11VNC_PID"
+            fi
+        fi
+        
+        # Start websockify for web access if not running
+        if [ -z "$WEBSOCKIFY_PID" ] || ! kill -0 "$WEBSOCKIFY_PID" 2>/dev/null; then
+            echo "[$(date)] Starting websockify for VNC-1..."
+            websockify --web /usr/share/novnc 6902 localhost:5902 \
+                       > /tmp/websockify-vnc1.log 2>&1 &
+            WEBSOCKIFY_PID=$!
+            echo "[$(date)] websockify started with PID: $WEBSOCKIFY_PID"
+        fi
+        
+        SECOND_MONITOR_ACTIVE=true
+    }
+    
+    # Function to stop services and destroy second monitor
+    stop_second_monitor() {
+        echo "[$(date)] Stopping second monitor services..."
+        
+        # Stop x11vnc
+        if [ -n "$X11VNC_PID" ] && kill -0 "$X11VNC_PID" 2>/dev/null; then
+            echo "[$(date)] Stopping x11vnc (PID: $X11VNC_PID)..."
+            kill "$X11VNC_PID" 2>/dev/null || true
+            sleep 1
+            kill -9 "$X11VNC_PID" 2>/dev/null || true
+            X11VNC_PID=""
+        fi
+        
+        # Stop websockify
+        if [ -n "$WEBSOCKIFY_PID" ] && kill -0 "$WEBSOCKIFY_PID" 2>/dev/null; then
+            echo "[$(date)] Stopping websockify (PID: $WEBSOCKIFY_PID)..."
+            kill "$WEBSOCKIFY_PID" 2>/dev/null || true
+            sleep 1
+            kill -9 "$WEBSOCKIFY_PID" 2>/dev/null || true
+            WEBSOCKIFY_PID=""
+        fi
+        
+        # Get original resolution for shrinking framebuffer
+        local resolution=$(get_resolution)
+        
+        # Remove second monitor
+        if xrandr --listmonitors | grep -q "VNC-1"; then
+            echo "[$(date)] Removing VNC-1 monitor..."
+            xrandr --delmonitor VNC-1 2>/dev/null || true
+            
+            # Shrink framebuffer back to single monitor
+            sleep 1
+            xrandr --fb $resolution 2>/dev/null || true
+            echo "[$(date)] VNC-1 monitor removed, framebuffer reset to $resolution"
+        fi
+        
+        # Cleanup PID files
+        rm -f /tmp/x11vnc-vnc1.pid /tmp/x11vnc-vnc1.log /tmp/websockify-vnc1.log
+        
+        SECOND_MONITOR_ACTIVE=false
+    }
+    
+    # Main monitoring loop
+    echo "[$(date)] Dynamic monitor service started. Checking every ${CHECK_INTERVAL}s..."
+    echo "[$(date)] Default resolution: $(get_resolution)"
+    
+    while true; do
+        CONNECTION_COUNT=$(check_for_connections)
+        
+        if [ "$CONNECTION_COUNT" -gt 0 ]; then
+            # Users are connected or waiting
+            if [ "$SECOND_MONITOR_ACTIVE" = false ]; then
+                echo "[$(date)] Detected $CONNECTION_COUNT connection(s). Activating second monitor..."
+                start_second_monitor
+            else
+                echo "[$(date)] Second monitor active. $CONNECTION_COUNT connection(s) present."
+            fi
+        else
+            # No users connected
+            if [ "$SECOND_MONITOR_ACTIVE" = true ]; then
+                echo "[$(date)] No connections detected. Deactivating second monitor..."
+                stop_second_monitor
+            fi
+        fi
+        
+        sleep "$CHECK_INTERVAL"
     done
 ) &
 
