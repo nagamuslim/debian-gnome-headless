@@ -1,23 +1,38 @@
 name: Build, Test, and Push Docker Image
 
 on:
-  # TRIGGER 1: Runs when you push to the main branch
+  # TRIGGER 1: Runs when you push to the main branch (but not workflow changes)
   push:
     branches: [ "main" ]
+    paths-ignore:
+      - '.github/workflows/**'
+      - '**.md'
+
   # TRIGGER 2: Runs automatically every day at 4 AM UTC to check for base image updates
   schedule:
     - cron: '0 4 * * *'
-  # TRIGGER 3: Allows you to run it manually
+
+  # TRIGGER 3: Allows you to run it manually with an option to skip
   workflow_dispatch:
+    inputs:
+      skip_build:
+        description: 'Skip build and push'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 jobs:
   check-for-update:
+    # This entire workflow run will be skipped if manually triggered with skip_build = 'true'
+    if: github.event.inputs.skip_build != 'true'
     runs-on: ubuntu-latest
     env:
       DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME || github.actor }}
     outputs:
       needs-updating: ${{ steps.final.outputs.needs-updating }}
-
     steps:
       - name: "Short-circuit for non-schedule (force build on push/manual)"
         id: default
@@ -44,22 +59,20 @@ jobs:
             # use the checker's output
             echo "needs-updating=${{ steps.check.outputs.needs-updating }}" >> $GITHUB_OUTPUT
           else
-            # non-schedule -> build (we set it above too, but be explicit)
+            # non-schedule -> build
             echo "needs-updating=true" >> $GITHUB_OUTPUT
           fi
-
 
   build-and-push:
     needs: check-for-update
     # Runs if triggered by a push OR if the check job found an update.
+    # This job will be skipped automatically if 'check-for-update' is skipped.
     if: github.event_name != 'schedule' || needs.check-for-update.outputs.needs-updating == 'true'
     runs-on: ubuntu-latest
     env:
       DOCKERFILE_PATH: "debian-gnome-headless.dockerfile"
       IMAGE_NAME: "debian-gnome-headless"
-      # Your original, resilient logic for determining the Docker user
       DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME || github.actor }}
-
     steps:
       - name: Verify Docker credentials
         run: |
@@ -91,19 +104,37 @@ jobs:
           docker run --name my-debian-container --privileged -d \
                      "${DOCKER_USER}/${IMAGE_NAME}:latest"
 
-      - name: Test for systemd and Push on Success
+      - name: Test for systemd and VNC, then Push on Success
         run: |
           echo "--- Checking for systemd as PID 1 ---"
           sleep 15
           INIT_PROCESS=$(docker exec my-debian-container ps -p 1 -o comm=)
           echo "Process with PID 1 is: $INIT_PROCESS"
-          if [ "$INIT_PROCESS" = "systemd" ]; then
-            echo "✅ systemd detected. Pushing image to Docker Hub..."
-            docker push "${DOCKER_USER}/${IMAGE_NAME}:latest"
-          else
+          if [ "$INIT_PROCESS" != "systemd" ]; then
             echo "❌ Test Failed: systemd was not found as PID 1."
             exit 1
           fi
+          echo "✅ systemd detected."
+
+          echo "--- Checking for VNC on port 5901 ---"
+          VNC_CHECK=$(docker exec my-debian-container netstat -tuln | grep ':5901' || echo "")
+          if [ -z "$VNC_CHECK" ]; then
+            echo "❌ Test Failed: VNC port 5901 not listening."
+            exit 1
+          fi
+          echo "✅ VNC port 5901 is active."
+
+          echo "--- Deleting old image from Docker Hub ---"
+          TOKEN=$(curl -s -H "Content-Type: application/json" -X POST \
+            -d '''''{"username": "'${DOCKER_USER}'", "password": "'${{ secrets.DOCKERHUB_TOKEN }}'"}''''' \
+            https://hub.docker.com/v2/users/login/ | jq -r .token)
+
+          curl -X DELETE \
+            -H "Authorization: JWT ${TOKEN}" \
+            "https://hub.docker.com/v2/repositories/${DOCKER_USER}/${IMAGE_NAME}/tags/latest/" || echo "No existing image to delete"
+
+          echo "--- Pushing new image to Docker Hub ---"
+          docker push "${DOCKER_USER}/${IMAGE_NAME}:latest"
 
       - name: Clean up container
         if: always()
