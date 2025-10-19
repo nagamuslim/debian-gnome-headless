@@ -2,8 +2,8 @@
 # Override the echo command to send its output to the systemd journal
 echo() {
   # Use 'builtin echo' to run the original echo command,
-  # then pipe its output to 'logger' with a tag.
-  builtin echo "$@" | logger -t test-script
+  # then pipe its output to 'systemd-cat' which correctly associates it with the parent service.
+  builtin echo "$@" | systemd-cat -t echo
 }
 # /home/debian/script/test.sh
 # Direct logging with set -x
