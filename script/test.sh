@@ -1,4 +1,10 @@
 #!/bin/bash
+# Override the echo command to send its output to the systemd journal
+echo() {
+  # Use 'builtin echo' to run the original echo command,
+  # then pipe its output to 'logger' with a tag.
+  builtin echo "$@" | logger -t test-script
+}
 # /home/debian/script/test.sh
 # Direct logging with set -x
 #exec >> /home/debian/test.log 2>&1
@@ -138,12 +144,20 @@ gnome-extensions enable ding@rastersoft.com
 
 # Background task 7: language monitoring
 ( 
-    current_lang=$(localectl status | grep 'System Locale' | cut -d'=' -f2)
+    current_lang=$(localectl status | awk -F'LANG=' '/System Locale/ {print $2}')
     while sleep 10; do 
-        new_lang=$(localectl status | grep 'System Locale' | cut -d'=' -f2)
+        new_lang=$(localectl status | awk -F'LANG=' '/System Locale/ {print $2}')
         sys_lang=$(cat /etc/default/locale 2>/dev/null | grep LANG= | cut -d'=' -f2 | tr -d '"')
         if [ "$current_lang" != "$new_lang" ] || [ "$current_lang" != "$sys_lang" ]; then
-            echo "export DEFAULT_LANG='$new_lang'" | sudo tee /etc/profile.d/00docker-env.sh > /dev/null
+            # Update DEFAULT_LANG without overwriting other variables
+            # Check for both commented and uncommented lines
+            if grep -q "^#\?export DEFAULT_LANG=" /etc/profile.d/00docker-env.sh 2>/dev/null; then
+                # Replace existing DEFAULT_LANG line (commented or not)
+                sudo sed -i "s|^#\?export DEFAULT_LANG=.*|export DEFAULT_LANG='$new_lang'|" /etc/profile.d/00docker-env.sh
+            else
+                # Append if doesn't exist
+                echo "export DEFAULT_LANG='$new_lang'" | sudo tee -a /etc/profile.d/00docker-env.sh > /dev/null
+            fi
             killall vncserver
             exit
         fi
