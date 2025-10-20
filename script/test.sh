@@ -64,7 +64,7 @@ detect_gnome() {
 [ "$(cat /tmp/gatekeep.count 2>/dev/null || echo 0)" -gt 1 ] && export GTK_THEME='Adwaita:dark' GTK2_RC_FILES=/usr/share/themes/Adwaita-dark/gtk-2.0/gtkrc
 QT_QPA_PLATFORMTHEME=gnome
 export QT_QPA_PLATFORMTHEME=gnome
-[ -f /etc/profile.d/00docker-env.sh ] && { grep -q "gnome-initial-setup=[\"']?yes[\"']?$" /etc/profile.d/00docker-env.sh 2>/dev/null || { ! grep -q "DEFAULT_LANG" /etc/profile.d/00docker-env.sh 2>/dev/null && ! grep -q "gnome-initial-setup=" /etc/profile.d/00docker-env.sh 2>/dev/null; }; } || echo "3" > /tmp/gatekeep.count
+[ -f /etc/profile.d/00docker-env.sh ] && { grep -q "gnome-initial-setup=[\"']?yes[\"']?$" /etc/profile.d/00docker-env.sh 2>/dev/null || { ! grep -q "DEFAULT_LANG" /etc/profile.d/00docker-env.sh 2>/dev/null && ! grep -q "gnome-initial-setup=" /etc/profile.d/00docker-env.sh 2>/dev/null; }; } || sudo echo "3" > /tmp/gatekeep.count
 # Configure GNOME settings
 pactl list short modules | grep -q module-x11-publish || pactl load-module module-x11-publish display=:1 || true
 pactl list short modules | grep -q module-x11-cork-request || pactl load-module module-x11-cork-request display=:1 || true
@@ -176,49 +176,17 @@ gnome-extensions enable ding@rastersoft.com
     
     # Function to get resolution from res.sh or default to 720p
     get_resolution() {
-        local width height
-        
-        # Try to read from /run/vnc.env (set by res.sh)
+        # The /run/vnc.env file is the single source of truth, created by res.sh
         if [ -f /run/vnc.env ]; then
-            local geom=$(grep "^GEOMETRY=" /run/vnc.env | cut -d'=' -f2)
-            if [ -n "$geom" ]; then
-                width=$(echo "$geom" | cut -d'x' -f1)
-                height=$(echo "$geom" | cut -d'x' -f2)
-                echo "${width}x${height}"
+            # Source the file to load GEOMETRY variable and then print it
+            . /run/vnc.env
+            if [ -n "$GEOMETRY" ]; then
+                echo "$GEOMETRY"
                 return
             fi
         fi
         
-        # Try to parse from /etc/profile.d/00docker-env.sh
-        if [ -f /etc/profile.d/00docker-env.sh ]; then
-            local res_val=$(grep "^export res=" /etc/profile.d/00docker-env.sh | cut -d'=' -f2 | tr -d '"' | tr -d "'")
-            if [ -n "$res_val" ]; then
-                case "$res_val" in
-                    [0-9]*x[0-9]*)
-                        echo "$res_val"
-                        return
-                        ;;
-                    720p|hd)
-                        echo "1280x720"
-                        return
-                        ;;
-                    1080p|fhd)
-                        echo "1920x1080"
-                        return
-                        ;;
-                    1440p|qhd)
-                        echo "2560x1440"
-                        return
-                        ;;
-                    800p)
-                        echo "1280x800"
-                        return
-                        ;;
-                esac
-            fi
-        fi
-        
-        # Default to 720p
+        # If the file or variable doesn't exist, fall back to the default
         echo "1280x720"
     }
     
