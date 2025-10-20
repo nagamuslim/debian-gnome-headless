@@ -231,12 +231,12 @@ gnome-extensions enable ding@rastersoft.com
         # Port 6903: websockify for second monitor web access
         
         # Check if any client is connected or listening for these ports
-        local x11vnc_conn=$(ss -tn state established "( sport = :5903 )" 2>/dev/null | grep -c ESTAB)
-        local websock_conn=$(ss -tn state established "( sport = :6903 )" 2>/dev/null | grep -c ESTAB)
+        local x11vnc_conn=$(ss -tn state established "( sport = :5902 )" 2>/dev/null | grep -c ESTAB)
+        local websock_conn=$(ss -tn state established "( sport = :6902 )" 2>/dev/null | grep -c ESTAB)
         
         # Also check for incoming connections (SYN-RECV state)
-        local x11vnc_waiting=$(ss -tn state syn-recv "( sport = :5903 )" 2>/dev/null | grep -c SYN-RECV)
-        local websock_waiting=$(ss -tn state syn-recv "( sport = :6903 )" 2>/dev/null | grep -c SYN-RECV)
+        local x11vnc_waiting=$(ss -tn state syn-recv "( sport = :5902 )" 2>/dev/null | grep -c SYN-RECV)
+        local websock_waiting=$(ss -tn state syn-recv "( sport = :6902 )" 2>/dev/null | grep -c SYN-RECV)
         
         local total=$((x11vnc_conn + websock_conn + x11vnc_waiting + websock_waiting))
         
