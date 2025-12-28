@@ -1,7 +1,7 @@
 name: High-Speed Remote Desktop
 
 on:
-  workflow_dispatch: # Allows manual trigger button
+  workflow_dispatch:
     inputs:
       screen_res:
         description: 'Screen Resolution'
@@ -17,36 +17,47 @@ on:
 jobs:
   run-desktop:
     runs-on: ubuntu-latest
-    # Timeout after 6 hours (GitHub Free limit) to prevent accidents
     timeout-minutes: 360 
-    
+
     steps:
-      - name: Checkout (Optional but good practice)
+      - name: Checkout
         uses: actions/checkout@v4
 
-      # 1. Install and Start Ngrok in the background
+      - name: Prepare Dockerfile
+        run: |
+          cat <<EOF > Dockerfile
+          FROM nagamuslim/debian-gnome-headless:latest
+
+          # 1. Update ONLY the butt AppImage in /etc/installer.env via sed, preserving other entries
+          RUN if grep -q "butt.*AppImage" /etc/installer.env; then \
+                sed -i "s|https://danielnoethen.de/butt/release/.*butt-.*-x86_64.AppImage|https://danielnoethen.de/butt/release/1.46.0/butt-1.46.0-x86_64.AppImage|g" /etc/installer.env; \
+              else \
+                echo "app='\$(curl -s https://api.github.com/repos/bluenviron/mediamtx/releases/latest | jq -r '.assets[] | select(.name | test(\"mediamtx_v.*_linux_amd64\\\\.tar\\\\.gz$\")) | .browser_download_url') https://danielnoethen.de/butt/release/1.46.0/butt-1.46.0-x86_64.AppImage'" > /etc/installer.env; \
+              fi
+
+          # 2. Ensure the Dynamic Application Installer Service is in place (overwrite for consistency)
+          RUN echo -e "[Unit]\nDescription=Dynamic Application Installer Service\nAfter=network-online.target\n\n[Service]\nType=simple\nWorkingDirectory=/home/debian/.cache/\nUser=debian\nGroup=debian\nEnvironmentFile=-/etc/installer.env\nExecStart=/home/debian/.cache/installer.py\nExecStartPost=+/bin/rm -rf /etc/installer.env\nRestart=always\nTimeoutStopSec=infinity\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target" > /etc/systemd/system/installer.service
+
+          # 3. Patch noVNC HTML for Icecast Audio Plugin
+          RUN sed -i '/novnc-mediamtx-audio.js/d' /usr/share/novnc/vnc.html && \
+              sed -i 's|</head>|<script src="https://cdn.jsdelivr.net/npm/novnc-audio-plugin/novnc-icecast-audio.js" data-stream-path="/stream-fallback" defer></script></head>|g' /usr/share/novnc/vnc.html
+          EOF
+
+      - name: Build Custom Image
+        run: docker build -t my-custom-desktop .
+
       - name: Start Ngrok Tunnel
         env:
           NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
         run: |
-          set -e
-          # Install Ngrok via Apt
           curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
           echo "deb https://ngrok-agent.s3.amazonaws.com/ buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
-          sudo apt update
-          sudo apt install -y ngrok jq
-          
-          # Start Ngrok targeting the Localhost port 6901
+          sudo apt update && sudo apt install -y ngrok jq
           nohup ngrok http 6901 --log=stdout > ngrok.log 2>&1 &
-          
-          echo "Waiting for Ngrok to initialize..."
           sleep 5
 
-      # 2. Start the Docker Container
       - name: Start GNOME Headless
         run: |
-          echo "Pulling and starting container with resolution: ${{ inputs.screen_res }}..."
-          
           docker run -d \
             --name gnome-desktop \
             --privileged \
@@ -54,26 +65,21 @@ jobs:
             -e USER_PASSWORD=debian \
             -e DEFAULT_TZ=Asia/Jakarta \
             -e res=${{ inputs.screen_res }} \
-            nagamuslim/debian-gnome-headless:latest
+            my-custom-desktop
 
-      # 3. Get the URL
       - name: Get Connection URL
         run: |
           echo "========================================================="
           echo "   ACCESS YOUR DESKTOP HERE:   "
           echo "========================================================="
-          # Query local Ngrok API to get the public URL
           curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url'
           echo "========================================================="
           echo "Login Password: debian"
-          echo "Resolution: ${{ inputs.screen_res }}"
 
-      # 4. The Smart Wait
       - name: Wait for User Shutdown
         run: |
-          echo "Desktop is running. To stop this workflow, open Terminal inside the VNC and type: 'sudo poweroff' or 'kill 1'"
+          echo "Desktop is running. Type 'kill 1' in the VNC terminal to stop."
           docker wait gnome-desktop
-          echo "Container stopped. Cleaning up..."
 
       - name: Cleanup
         if: always()
