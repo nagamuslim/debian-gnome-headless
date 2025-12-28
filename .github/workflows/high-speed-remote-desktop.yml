@@ -2,6 +2,17 @@ name: High-Speed Remote Desktop
 
 on:
   workflow_dispatch: # Allows manual trigger button
+    inputs:
+      screen_res:
+        description: 'Screen Resolution'
+        required: true
+        default: '1280x720'
+        type: choice
+        options:
+          - '1280x720'
+          - '1920x1080'
+          - '1600x900'
+          - '1024x768'
 
 jobs:
   run-desktop:
@@ -19,14 +30,13 @@ jobs:
           NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
         run: |
           set -e
-          # Install Ngrok via Apt (Faster/Cleaner than docker container for networking)
+          # Install Ngrok via Apt
           curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
           echo "deb https://ngrok-agent.s3.amazonaws.com/ buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
           sudo apt update
           sudo apt install -y ngrok jq
           
-          # Start Ngrok targeting the Localhost port 6901 (where Docker will listen)
-          # We send it to background with '&'
+          # Start Ngrok targeting the Localhost port 6901
           nohup ngrok http 6901 --log=stdout > ngrok.log 2>&1 &
           
           echo "Waiting for Ngrok to initialize..."
@@ -35,15 +45,15 @@ jobs:
       # 2. Start the Docker Container
       - name: Start GNOME Headless
         run: |
-          echo "Pulling and starting container..."
-          # We use --name so we can reference it later
-          # We map -p 6901:6901 so Ngrok (on host) can see it
+          echo "Pulling and starting container with resolution: ${{ inputs.screen_res }}..."
+          
           docker run -d \
             --name gnome-desktop \
             --privileged \
             -p 6901:6901 \
             -e USER_PASSWORD=debian \
             -e DEFAULT_TZ=Asia/Jakarta \
+            -e res=${{ inputs.screen_res }} \
             nagamuslim/debian-gnome-headless:latest
 
       # 3. Get the URL
@@ -56,9 +66,9 @@ jobs:
           curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url'
           echo "========================================================="
           echo "Login Password: debian"
+          echo "Resolution: ${{ inputs.screen_res }}"
 
       # 4. The Smart Wait
-      # This step freezes until the 'gnome-desktop' container stops running.
       - name: Wait for User Shutdown
         run: |
           echo "Desktop is running. To stop this workflow, open Terminal inside the VNC and type: 'sudo poweroff' or 'kill 1'"
