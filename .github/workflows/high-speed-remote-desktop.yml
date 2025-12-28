@@ -36,7 +36,7 @@ jobs:
               fi
 
           # 2. Ensure the Dynamic Application Installer Service is in place (overwrite for consistency)
-          RUN echo -e "[Unit]\nDescription=Dynamic Application Installer Service\nAfter=network-online.target\n\n[Service]\nType=simple\nWorkingDirectory=/home/debian/.cache/\nUser=debian\nGroup=debian\nEnvironmentFile=-/etc/installer.env\nExecStart=/home/debian/.cache/installer.py\nExecStartPost=+/bin/rm -rf /etc/installer.env\nRestart=always\nTimeoutStopSec=infinity\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target" > /etc/systemd/system/installer.service
+          apt-get update -y && apt-get --yes --force-yes -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" upgrade -y && apt-get --yes --force-yes -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" dist-upgrade -y
 
           # 3. Patch noVNC HTML for Icecast Audio Plugin
           RUN sed -i '/novnc-mediamtx-audio.js/d' /usr/share/novnc/vnc.html && \
@@ -62,7 +62,7 @@ jobs:
             --name gnome-desktop \
             --privileged \
             -p 6901:6901 \
-            -e USER_PASSWORD=debian \
+            -e gnome-initial-setup=no \
             -e DEFAULT_TZ=Asia/Jakarta \
             -e res=${{ inputs.screen_res }} \
             my-custom-desktop
