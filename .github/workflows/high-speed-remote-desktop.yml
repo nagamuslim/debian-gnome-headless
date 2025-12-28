@@ -36,7 +36,7 @@ jobs:
               fi
 
           # 2. Ensure the Dynamic Application Installer Service is in place (overwrite for consistency)
-          RUN apt-get update -y && apt-get --yes --force-yes -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" upgrade -y && apt-get --yes --force-yes -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" dist-upgrade -y
+          #RUN apt-get update -y && apt-get --yes --allow -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" upgrade -y && apt-get --yes --allow -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" dist-upgrade -y
 
           # 3. Patch noVNC HTML for Icecast Audio Plugin
           RUN sed -i '/novnc-mediamtx-audio.js/d' /usr/share/novnc/vnc.html && \
