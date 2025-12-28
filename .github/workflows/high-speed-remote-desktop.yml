@@ -1,0 +1,70 @@
+name: High-Speed Remote Desktop
+
+on:
+  workflow_dispatch: # Allows manual trigger button
+
+jobs:
+  run-desktop:
+    runs-on: ubuntu-latest
+    # Timeout after 6 hours (GitHub Free limit) to prevent accidents
+    timeout-minutes: 360 
+    
+    steps:
+      - name: Checkout (Optional but good practice)
+        uses: actions/checkout@v4
+
+      # 1. Install and Start Ngrok in the background
+      - name: Start Ngrok Tunnel
+        env:
+          NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
+        run: |
+          set -e
+          # Install Ngrok via Apt (Faster/Cleaner than docker container for networking)
+          curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+          echo "deb https://ngrok-agent.s3.amazonaws.com/ buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+          sudo apt update
+          sudo apt install -y ngrok jq
+          
+          # Start Ngrok targeting the Localhost port 6901 (where Docker will listen)
+          # We send it to background with '&'
+          nohup ngrok http 6901 --log=stdout > ngrok.log 2>&1 &
+          
+          echo "Waiting for Ngrok to initialize..."
+          sleep 5
+
+      # 2. Start the Docker Container
+      - name: Start GNOME Headless
+        run: |
+          echo "Pulling and starting container..."
+          # We use --name so we can reference it later
+          # We map -p 6901:6901 so Ngrok (on host) can see it
+          docker run -d \
+            --name gnome-desktop \
+            --privileged \
+            -p 6901:6901 \
+            -e USER_PASSWORD=debian \
+            -e DEFAULT_TZ=Asia/Jakarta \
+            nagamuslim/debian-gnome-headless:latest
+
+      # 3. Get the URL
+      - name: Get Connection URL
+        run: |
+          echo "========================================================="
+          echo "   ACCESS YOUR DESKTOP HERE:   "
+          echo "========================================================="
+          # Query local Ngrok API to get the public URL
+          curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url'
+          echo "========================================================="
+          echo "Login Password: debian"
+
+      # 4. The Smart Wait
+      # This step freezes until the 'gnome-desktop' container stops running.
+      - name: Wait for User Shutdown
+        run: |
+          echo "Desktop is running. To stop this workflow, open Terminal inside the VNC and type: 'sudo poweroff' or 'kill 1'"
+          docker wait gnome-desktop
+          echo "Container stopped. Cleaning up..."
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f gnome-desktop
