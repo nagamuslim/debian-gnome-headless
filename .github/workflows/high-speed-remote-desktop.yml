@@ -58,7 +58,7 @@ jobs:
           
           if [[ "${{ github.event.inputs.connection_mode }}" == "SSH (TCP)" ]]; then
             echo "Starting TCP Tunnel for SSH..."
-            nohup ngrok tcp 22 --log=stdout > ngrok.log 2>&1 &
+            nohup ngrok tcp 2022 --log=stdout > ngrok.log 2>&1 &
           else
             echo "Starting HTTP Tunnel for VNC..."
             nohup ngrok http 6901 --log=stdout > ngrok.log 2>&1 &
@@ -72,7 +72,7 @@ jobs:
             --name gnome-desktop \
             --privileged \
             -p 6901:6901 \
-            -p 22:22 \
+            -p 2022:22 \
             -e gnome-initial-setup=no \
             -e DEFAULT_TZ=Asia/Jakarta \
             -e res=${{ github.event.inputs.screen_res }} \
