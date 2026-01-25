@@ -22,7 +22,6 @@ on:
           - 'VNC (HTTP)'
           - 'SSH (TCP)'
 
-# 1. PERMISSIONS REQUIRED TO COMMIT CHANGES
 permissions:
   contents: write
 
@@ -39,17 +38,15 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: nagamuslim/nagamuslim.github.io
-          path: gh-pages-repo # Checkout into a separate directory
-          token: ${{ secrets.GITHUB_TOKEN }} # Use GITHUB_TOKEN for access
+          path: gh-pages-repo
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Prepare Dockerfile
         run: |
           cat <<EOF > Dockerfile
           FROM nagamuslim/debian-gnome-headless:latest
-          # 1. Update butt version to 1.46.0 in installer.env
           RUN sed -i 's|butt-1.45.0-x86_64.AppImage|butt-1.46.0-x86_64.AppImage|g' /etc/installer.env && \
               sed -i 's|/release/1.45.0/|/release/1.46.0/|g' /etc/installer.env
-          # 2. Patch noVNC HTML for Icecast Audio Plugin
           RUN sed -i 's|<\/head>|<script src="https://cdn.jsdelivr.net/npm/novnc-audio-plugin/novnc-icecast-audio.js" data-stream-path="/stream-fallback" defer></script><\/head>|g' /usr/share/novnc/vnc.html
           EOF
 
@@ -71,7 +68,6 @@ jobs:
             echo "Starting HTTP Tunnel for VNC..."
             nohup ngrok http 6901 --log=stdout > ngrok.log 2>&1 &
           fi
-          
           sleep 10
 
       - name: Start GNOME Headless
@@ -91,19 +87,13 @@ jobs:
         run: |
           PUBLIC_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url')
           
-          # Handle SSH format vs HTTP format for display
           if [[ $PUBLIC_URL == tcp://* ]]; then
-            # Convert tcp://0.tcp.ngrok.io:12345 to proper SSH display string if needed, 
-            # but for the HTML button, we might just want the raw link or instructions.
-            # For VNC it's a clickable URL. For SSH, we can't really make a browser link easily.
-            # Assuming VNC mostly based on HTML request:
             FINAL_URL="$PUBLIC_URL"
           else
             FINAL_URL="$PUBLIC_URL/vnc.html?password=debian&autoconnect=true"
           fi
           
           echo "url=$FINAL_URL" >> $GITHUB_OUTPUT
-          echo "raw_url=$PUBLIC_URL" >> $GITHUB_OUTPUT
 
       # 2. UPDATE HTML TO ONLINE STATE
       - name: Update Website Status (Online)
@@ -111,60 +101,52 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           
-          # Define path to the checked-out gh-pages-repo
           GH_PAGES_REPO_ROOT="gh-pages-repo" 
-          TARGET_FILE="project/desktop/index.html" # Relative to gh-pages-repo root
+          TARGET_FILE="project/desktop/index.html" 
           URL="${{ steps.get_url.outputs.url }}"
           
-          cd $GH_PAGES_REPO_ROOT # Change to the gh-pages-repo directory
-          
-          # Pull latest to avoid conflicts
+          cd $GH_PAGES_REPO_ROOT
           git pull
           
-          # 1. Update Status Text to ONLINE (Green)
-          sed -i 's|<!-- MAGIC_STATUS_START -->.*<!-- MAGIC_STATUS_END -->|<!-- MAGIC_STATUS_START --><p class="text-xl font-bold text-green-500 animate-pulse">ONLINE</p><!-- MAGIC_STATUS_END -->|g' $TARGET_FILE
+          # FIXED: Properly escaped double quotes inside the sed command
+          sed -i "s|<!-- MAGIC_STATUS_START -->.*<!-- MAGIC_STATUS_END -->|<!-- MAGIC_STATUS_START --><p class=\"text-xl font-bold text-green-500 animate-pulse\">ONLINE</p><!-- MAGIC_STATUS_END -->|g" $TARGET_FILE
           
-          # 2. Update HREF and style to Active (Blue button, clickable)
-          sed -i "s|<!-- MAGIC_HREF_START -->.*<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START --><a href=\"$URL\" target=\"_blank\" class=\"w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200"><!-- MAGIC_HREF_END -->|g" $TARGET_FILE
+          # FIXED: Properly escaped ALL double quotes inside the HTML string
+          sed -i "s|<!-- MAGIC_HREF_START -->.*<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START --><a href=\"$URL\" target=\"_blank\" class=\"w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200\"><!-- MAGIC_HREF_END -->|g" $TARGET_FILE
           
           git add $TARGET_FILE
           git commit -m "Update desktop status: ONLINE"
           git push
-          
-          cd .. # Go back to the root of debian-gnome-headless
+          cd ..
 
       - name: Wait for User Shutdown
         run: |
           echo "Container is running. Connect here: ${{ steps.get_url.outputs.url }}"
           docker wait gnome-desktop
 
-      # 3. RESET HTML TO OFFLINE STATE (Runs even if job is cancelled)
+      # 3. RESET HTML TO OFFLINE STATE
       - name: Reset Website Status (Offline)
         if: always() 
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           
-          # Define path to the checked-out gh-pages-repo
           GH_PAGES_REPO_ROOT="gh-pages-repo" 
-          TARGET_FILE="project/desktop/index.html" # Relative to gh-pages-repo root
+          TARGET_FILE="project/desktop/index.html"
           
-          cd $GH_PAGES_REPO_ROOT # Change to the gh-pages-repo directory
-          
-          # Pull latest
+          cd $GH_PAGES_REPO_ROOT
           git pull
           
-          # 1. Revert Status to OFFLINE (Red)
+          # FIXED: Used single quotes for sed (no variable needed), so NO backslashes needed for inner HTML
           sed -i 's|<!-- MAGIC_STATUS_START -->.*<!-- MAGIC_STATUS_END -->|<!-- MAGIC_STATUS_START --><p class="text-xl font-bold text-red-500">OFFLINE</p><!-- MAGIC_STATUS_END -->|g' $TARGET_FILE
           
-          # 2. Revert HREF to # and style to Disabled (Gray)
-          sed -i 's|<!-- MAGIC_HREF_START -->.*<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START --><a href="#" target="_blank" class=\"w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 cursor-not-allowed pointer-events-none transition-colors duration-200"><!-- MAGIC_HREF_END -->|g' $TARGET_FILE
+          # FIXED: Used single quotes for sed (no variable needed), so NO backslashes needed for inner HTML
+          sed -i 's|<!-- MAGIC_HREF_START -->.*<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START --><a href="#" target="_blank" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 cursor-not-allowed pointer-events-none transition-colors duration-200"><!-- MAGIC_HREF_END -->|g' $TARGET_FILE
           
           git add $TARGET_FILE
           git commit -m "Update desktop status: OFFLINE"
           git push
-          
-          cd .. # Go back to the root of debian-gnome-headless
+          cd ..
 
       - name: Cleanup Container
         if: always()
