@@ -111,11 +111,12 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           
-          GH_PAGES_REPO_PATH="gh-pages-repo" # Define path to the checked-out gh-pages-repo
-          TARGET_FILE="$GH_PAGES_REPO_PATH/project/desktop/index.html"
+          # Define path to the checked-out gh-pages-repo
+          GH_PAGES_REPO_ROOT="gh-pages-repo" 
+          TARGET_FILE="project/desktop/index.html" # Relative to gh-pages-repo root
           URL="${{ steps.get_url.outputs.url }}"
           
-          cd $GH_PAGES_REPO_PATH # Change to the gh-pages-repo directory
+          cd $GH_PAGES_REPO_ROOT # Change to the gh-pages-repo directory
           
           # Pull latest to avoid conflicts
           git pull
@@ -144,10 +145,11 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           
-          GH_PAGES_REPO_PATH="gh-pages-repo" # Define path to the checked-out gh-pages-repo
-          TARGET_FILE="$GH_PAGES_REPO_PATH/project/desktop/index.html"
+          # Define path to the checked-out gh-pages-repo
+          GH_PAGES_REPO_ROOT="gh-pages-repo" 
+          TARGET_FILE="project/desktop/index.html" # Relative to gh-pages-repo root
           
-          cd $GH_PAGES_REPO_PATH # Change to the gh-pages-repo directory
+          cd $GH_PAGES_REPO_ROOT # Change to the gh-pages-repo directory
           
           # Pull latest
           git pull
