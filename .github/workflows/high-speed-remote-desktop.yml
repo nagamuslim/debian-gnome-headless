@@ -34,6 +34,7 @@ jobs:
       - name: Checkout debian-gnome-headless
         uses: actions/checkout@v4
 
+      # Checkout the website repo to a specific folder
       - name: Checkout gh-pages-repo
         uses: actions/checkout@v4
         with:
@@ -62,10 +63,8 @@ jobs:
           sudo apt update && sudo apt install -y ngrok jq
           
           if [[ "${{ github.event.inputs.connection_mode }}" == "SSH (TCP)" ]]; then
-            echo "Starting TCP Tunnel for SSH..."
             nohup ngrok tcp 2022 --log=stdout > ngrok.log 2>&1 &
           else
-            echo "Starting HTTP Tunnel for VNC..."
             nohup ngrok http 6901 --log=stdout > ngrok.log 2>&1 &
           fi
           sleep 10
@@ -95,60 +94,57 @@ jobs:
           
           echo "url=$FINAL_URL" >> $GITHUB_OUTPUT
 
-      # 2. UPDATE HTML TO ONLINE STATE
-      - name: Update Website Status (Online)
+      # ---------------------------------------------------------
+      # STEP 2: UPDATE HTML TO ONLINE STATE
+      # ---------------------------------------------------------
+      
+      - name: Modify HTML File (Online)
         run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          
-          GH_PAGES_REPO_ROOT="gh-pages-repo" 
-          TARGET_FILE="project/desktop/index.html" 
+          TARGET_FILE="gh-pages-repo/project/desktop/index.html" 
           URL="${{ steps.get_url.outputs.url }}"
           
-          cd $GH_PAGES_REPO_ROOT
-          git pull
-          
-          # OPTIMIZED: Using single quotes here because we don't need variable expansion.
-          # This allows us to use normal double quotes for HTML attributes without escaping.
+          # 1. Update Status Text
           sed -i 's|<!-- MAGIC_STATUS_START -->.*<!-- MAGIC_STATUS_END -->|<!-- MAGIC_STATUS_START --><p class="text-xl font-bold text-green-500 animate-pulse">ONLINE</p><!-- MAGIC_STATUS_END -->|g' $TARGET_FILE
           
-          # REQUIRED: Using double quotes here because we NEED to expand $URL.
-          # Therefore, we MUST escape inner double quotes with backslashes (\").
-          sed -i "s|<!-- MAGIC_HREF_START -->.*<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START --><a href=\"$URL\" target=\"_blank\" class=\"w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200\"><!-- MAGIC_HREF_END -->|g" $TARGET_FILE
-          
-          git add $TARGET_FILE
-          git commit -m "Update desktop status: ONLINE"
-          git push
-          cd ..
+          # 2. Update Button Link (Using double quotes to expand $URL)
+          sed -i "s|<!-- MAGIC_HREF_START -->.*<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START --><a href=\"$URL\" target=\"_blank\" class=\"w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200\">Connect via NoVNC</a><!-- MAGIC_HREF_END -->|g" $TARGET_FILE
+
+      - name: Push Online Status
+        uses: EndBug/add-and-commit@v9
+        with:
+          cwd: './gh-pages-repo'
+          add: 'project/desktop/index.html'
+          message: 'Update desktop status: ONLINE'
+          push: true
 
       - name: Wait for User Shutdown
         run: |
           echo "Container is running. Connect here: ${{ steps.get_url.outputs.url }}"
           docker wait gnome-desktop
 
-      # 3. RESET HTML TO OFFLINE STATE
-      - name: Reset Website Status (Offline)
+      # ---------------------------------------------------------
+      # STEP 3: RESET HTML TO OFFLINE STATE
+      # ---------------------------------------------------------
+      
+      - name: Modify HTML File (Offline)
         if: always() 
         run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
+          TARGET_FILE="gh-pages-repo/project/desktop/index.html"
           
-          GH_PAGES_REPO_ROOT="gh-pages-repo" 
-          TARGET_FILE="project/desktop/index.html"
-          
-          cd $GH_PAGES_REPO_ROOT
-          git pull
-          
-          # FIXED: Removed 'bash' prefix. Used single quotes for cleanliness.
+          # 1. Reset Status
           sed -i 's|<!-- MAGIC_STATUS_START -->.*<!-- MAGIC_STATUS_END -->|<!-- MAGIC_STATUS_START --><p class="text-xl font-bold text-red-500">OFFLINE</p><!-- MAGIC_STATUS_END -->|g' $TARGET_FILE
           
-          # FIXED: Removed 'bash' prefix. Used single quotes for cleanliness.
-          sed -i 's|<!-- MAGIC_HREF_START -->.*<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START --><a href="#" target="_blank" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 cursor-not-allowed pointer-events-none transition-colors duration-200"><!-- MAGIC_HREF_END -->|g' $TARGET_FILE
-          
-          git add $TARGET_FILE
-          git commit -m "Update desktop status: OFFLINE"
-          git push
-          cd ..
+          # 2. Reset Button
+          sed -i 's|<!-- MAGIC_HREF_START -->.*<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START --><a href="#" target="_blank" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 cursor-not-allowed pointer-events-none transition-colors duration-200">Connect via NoVNC</a><!-- MAGIC_HREF_END -->|g' $TARGET_FILE
+
+      - name: Push Offline Status
+        if: always()
+        uses: EndBug/add-and-commit@v9
+        with:
+          cwd: './gh-pages-repo'
+          add: 'project/desktop/index.html'
+          message: 'Update desktop status: OFFLINE'
+          push: true
 
       - name: Cleanup Container
         if: always()
