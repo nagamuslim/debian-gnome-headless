@@ -108,10 +108,12 @@ jobs:
           cd $GH_PAGES_REPO_ROOT
           git pull
           
-          # FIXED: Properly escaped double quotes inside the sed command
-          sed -i "s|<!-- MAGIC_STATUS_START -->.*<!-- MAGIC_STATUS_END -->|<!-- MAGIC_STATUS_START --><p class=\"text-xl font-bold text-green-500 animate-pulse\">ONLINE</p><!-- MAGIC_STATUS_END -->|g" $TARGET_FILE
+          # OPTIMIZED: Using single quotes here because we don't need variable expansion.
+          # This allows us to use normal double quotes for HTML attributes without escaping.
+          sed -i 's|<!-- MAGIC_STATUS_START -->.*<!-- MAGIC_STATUS_END -->|<!-- MAGIC_STATUS_START --><p class="text-xl font-bold text-green-500 animate-pulse">ONLINE</p><!-- MAGIC_STATUS_END -->|g' $TARGET_FILE
           
-          # FIXED: Properly escaped ALL double quotes inside the HTML string
+          # REQUIRED: Using double quotes here because we NEED to expand $URL.
+          # Therefore, we MUST escape inner double quotes with backslashes (\").
           sed -i "s|<!-- MAGIC_HREF_START -->.*<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START --><a href=\"$URL\" target=\"_blank\" class=\"w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200\"><!-- MAGIC_HREF_END -->|g" $TARGET_FILE
           
           git add $TARGET_FILE
@@ -137,10 +139,10 @@ jobs:
           cd $GH_PAGES_REPO_ROOT
           git pull
           
-          # FIXED: Used single quotes for sed (no variable needed), so NO backslashes needed for inner HTML
+          # FIXED: Removed 'bash' prefix. Used single quotes for cleanliness.
           sed -i 's|<!-- MAGIC_STATUS_START -->.*<!-- MAGIC_STATUS_END -->|<!-- MAGIC_STATUS_START --><p class="text-xl font-bold text-red-500">OFFLINE</p><!-- MAGIC_STATUS_END -->|g' $TARGET_FILE
           
-          # FIXED: Used single quotes for sed (no variable needed), so NO backslashes needed for inner HTML
+          # FIXED: Removed 'bash' prefix. Used single quotes for cleanliness.
           sed -i 's|<!-- MAGIC_HREF_START -->.*<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START --><a href="#" target="_blank" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 cursor-not-allowed pointer-events-none transition-colors duration-200"><!-- MAGIC_HREF_END -->|g' $TARGET_FILE
           
           git add $TARGET_FILE
