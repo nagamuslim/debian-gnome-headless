@@ -48,7 +48,7 @@ jobs:
           FROM nagamuslim/debian-gnome-headless:latest
           RUN sed -i 's|butt-1.45.0-x86_64.AppImage|butt-1.46.0-x86_64.AppImage|g' /etc/installer.env && \
               sed -i 's|/release/1.45.0/|/release/1.46.0/|g' /etc/installer.env
-          RUN sed -i 's|<\/head>|<script src="https://cdn.jsdelivr.net/npm/novnc-audio-plugin/novnc-icecast-audio.js" data-stream-path="/stream-fallback" defer></script><\/head>|g' /usr/share/novnc/vnc.html
+          RUN sed -i '/novnc-mediamtx-audio.js/d' /usr/share/novnc/vnc.html && sed -i 's|<\/head>|<script src="https://cdn.jsdelivr.net/npm/novnc-audio-plugin/novnc-icecast-audio.js" data-stream-path="/stream-fallback" defer></script><\/head>|g' /usr/share/novnc/vnc.html
           EOF
 
       - name: Build Custom Image
@@ -89,7 +89,7 @@ jobs:
           if [[ $PUBLIC_URL == tcp://* ]]; then
             FINAL_URL="$PUBLIC_URL"
           else
-            FINAL_URL="$PUBLIC_URL/vnc.html?password=debian&autoconnect=true"
+            FINAL_URL="$PUBLIC_URL"
           fi
           
           echo "url=$FINAL_URL" >> $GITHUB_OUTPUT
