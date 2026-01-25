@@ -40,7 +40,7 @@ jobs:
         with:
           repository: nagamuslim/nagamuslim.github.io
           path: gh-pages-repo
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_PAGES_TOKEN }}
 
       - name: Prepare Dockerfile
         run: |
