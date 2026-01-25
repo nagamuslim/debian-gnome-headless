@@ -44,11 +44,49 @@ jobs:
 
       - name: Prepare Dockerfile
         run: |
-          cat <<EOF > Dockerfile
+          cat <<'EOF' > Dockerfile
           FROM nagamuslim/debian-gnome-headless:latest
           RUN sed -i 's|butt-1.45.0-x86_64.AppImage|butt-1.46.0-x86_64.AppImage|g' /etc/installer.env && \
               sed -i 's|/release/1.45.0/|/release/1.46.0/|g' /etc/installer.env
           RUN sed -i '/novnc-mediamtx-audio.js/d' /usr/share/novnc/vnc.html && sed -i 's|<\/head>|<script src="https://cdn.jsdelivr.net/npm/novnc-audio-plugin/novnc-icecast-audio.js" data-stream-path="/stream-fallback" defer></script><\/head>|g' /usr/share/novnc/vnc.html
+          # --- Create Standalone Tor Browser Patching Script ---
+          RUN echo '#!/bin/bash' > /usr/local/bin/patch_tor_browser.sh && \
+            echo 'TOR_BROWSER_DIR="/home/debian/.var/app/org.torproject.torbrowser-launcher/data/torbrowser/tbb/x86_64/tor-browser"' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo 'TORRC_FILE="$TOR_BROWSER_DIR/Browser/TorBrowser/Data/Tor/torrc"' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo 'LOG_FILE="/home/debian/tor_patch.log"' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo '' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo 'echo "--- Tor Browser Exit Node Configuration Script ---" > "$LOG_FILE" 2>&1' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo 'echo "Script started at $(date)" >> "$LOG_FILE" 2>&1' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo '' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo 'echo "Attempting to configure Tor Browser exit node..." >> "$LOG_FILE" 2>&1' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo '# Wait for Tor Browser installation directory to exist' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo 'while [ ! -d "$TOR_BROWSER_DIR" ]; do' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo '    echo "Waiting for Tor Browser directory: $TOR_BROWSER_DIR" >> "$LOG_FILE" 2>&1' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo '    sleep 10' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo 'done' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo 'echo "Tor Browser directory found." >> "$LOG_FILE" 2>&1' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo '' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo '# Wait for torrc file to exist' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo 'while [ ! -f "$TORRC_FILE" ]; do' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo '    echo "Waiting for torrc file: $TORRC_FILE" >> "$LOG_FILE" 2>&1' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo '    sleep 5' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo 'done' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo 'echo "Torrc file found." >> "$LOG_FILE" 2>&1' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo '' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo '# Append ExitNodes and StrictNodes if not already present' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo 'if ! grep -q "ExitNodes {id}" "$TORRC_FILE"; then' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo '    echo "Appending ExitNodes {id} to $TORRC_FILE" >> "$LOG_FILE" 2>&1' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo '    echo "ExitNodes {id}" >> "$TORRC_FILE"' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo 'fi' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo '' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo 'if ! grep -q "StrictNodes 1" "$TORRC_FILE"; then' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo '    echo "Appending StrictNodes 1 to $TORRC_FILE" >> "$LOG_FILE" 2>&1' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo '    echo "StrictNodes 1" >> "$TORRC_FILE"' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo 'fi' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo 'echo "Tor Browser exit node configuration applied." >> "$LOG_FILE" 2>&1' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo 'echo "Script finished at $(date)" >> "$LOG_FILE" 2>&1' >> /usr/local/bin/patch_tor_browser.sh 
+          RUN chmod +x /usr/local/bin/patch_tor_browser.sh && mv /usr/local/bin/patch_tor_browser.sh /usr/local/bin/patch_tor.sh
+          # --- End Create Standalone Tor Browser Patching Script ---
           EOF
 
       - name: Build Custom Image
@@ -87,12 +125,20 @@ jobs:
           PUBLIC_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url')
           
           if [[ $PUBLIC_URL == tcp://* ]]; then
-            FINAL_URL="$PUBLIC_URL"
+            # Parse SSH Details for AI friendliness
+            CLEAN_URL=${PUBLIC_URL#tcp://}
+            HOST=${CLEAN_URL%:*}
+            PORT=${CLEAN_URL##*:}
+            
+            # Set Outputs
+            echo "mode=SSH" >> $GITHUB_OUTPUT
+            echo "host=$HOST" >> $GITHUB_OUTPUT
+            echo "port=$PORT" >> $GITHUB_OUTPUT
+            echo "full_url=$PUBLIC_URL" >> $GITHUB_OUTPUT
           else
-            FINAL_URL="$PUBLIC_URL"
+            echo "mode=VNC" >> $GITHUB_OUTPUT
+            echo "full_url=$PUBLIC_URL/vnc.html?password=debian&autoconnect=true" >> $GITHUB_OUTPUT
           fi
-          
-          echo "url=$FINAL_URL" >> $GITHUB_OUTPUT
 
       # ---------------------------------------------------------
       # STEP 2: UPDATE HTML TO ONLINE STATE
@@ -101,20 +147,33 @@ jobs:
       - name: Modify HTML File (Online)
         run: |
           TARGET_FILE="gh-pages-repo/project/desktop/index.html" 
-          URL="${{ steps.get_url.outputs.url }}"
+          MODE="${{ steps.get_url.outputs.mode }}"
+          URL="${{ steps.get_url.outputs.full_url }}"
           DATE=$(date)
           
-          # We use perl instead of sed because perl handles multi-line replacements much better.
-          # -0777 reads the whole file at once.
+          # 1. Update Status to ONLINE
+          perl -0777 -i -pe "s|<!-- MAGIC_STATUS_START -->.*?<!-- MAGIC_STATUS_END -->|<!-- MAGIC_STATUS_START -->\n<p class=\"text-xl font-bold text-green-500 animate-pulse\">ONLINE ($MODE)</p>\n<!-- MAGIC_STATUS_END -->|s" $TARGET_FILE
           
-          # 1. Update Status Text (Multiline Regex)
-          perl -0777 -i -pe "s|<!-- MAGIC_STATUS_START -->.*?<!-- MAGIC_STATUS_END -->|<!-- MAGIC_STATUS_START -->\n<p class=\"text-xl font-bold text-green-500 animate-pulse\">ONLINE</p>\n<!-- MAGIC_STATUS_END -->|s" $TARGET_FILE
+          if [[ "$MODE" == "SSH" ]]; then
+            HOST="${{ steps.get_url.outputs.host }}"
+            PORT="${{ steps.get_url.outputs.port }}"
+            
+            # Create AI-Friendly JSON Block
+            AI_JSON="<!-- AI_DATA: { \"mode\": \"ssh\", \"host\": \"$HOST\", \"port\": \"$PORT\", \"user\": \"debian\", \"pass\": \"debian\", \"command\": \"ssh -p $PORT debian@$HOST\" } -->"
+            
+            # Create Human/AI Readable Code Block
+            HTML_BLOCK="<div class=\"bg-gray-900 p-4 rounded text-left font-mono text-sm text-green-400 break-all select-all\">ssh -p $PORT debian@$HOST<br><span class=\"text-gray-500\"># Password: debian</span></div>$AI_JSON"
+            
+            perl -0777 -i -pe "s|<!-- MAGIC_HREF_START -->.*?<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START -->\n$HTML_BLOCK\n<!-- MAGIC_HREF_END -->|s" $TARGET_FILE
           
-          # 2. Update Button Link (Multiline Regex)
-          perl -0777 -i -pe "s|<!-- MAGIC_HREF_START -->.*?<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START -->\n<a href=\"$URL\" target=\"_blank\" class=\"w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200\">Connect via NoVNC</a>\n<!-- MAGIC_HREF_END -->|s" $TARGET_FILE
+          else
+            # VNC MODE (Standard Button)
+            HTML_BLOCK="<a href=\"$URL\" target=\"_blank\" class=\"w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200\">Connect via NoVNC</a>"
+            
+            perl -0777 -i -pe "s|<!-- MAGIC_HREF_START -->.*?<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START -->\n$HTML_BLOCK\n<!-- MAGIC_HREF_END -->|s" $TARGET_FILE
+          fi
           
-          # 3. Add a timestamp at the end to GUARANTEE a file change (fixing 'clean tree' error)
-          # We remove the last line if it exists (previous timestamp) and append a new one
+          # Force git update with timestamp
           sed -i '$d' $TARGET_FILE
           echo "<!-- UPDATED: $DATE -->" >> $TARGET_FILE
 
