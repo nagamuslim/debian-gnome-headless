@@ -32,8 +32,15 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - name: Checkout
+      - name: Checkout debian-gnome-headless
         uses: actions/checkout@v4
+
+      - name: Checkout gh-pages-repo
+        uses: actions/checkout@v4
+        with:
+          repository: nagamuslim/nagamuslim.github.io
+          path: gh-pages-repo # Checkout into a separate directory
+          token: ${{ secrets.GITHUB_TOKEN }} # Use GITHUB_TOKEN for access
 
       - name: Prepare Dockerfile
         run: |
@@ -104,8 +111,11 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           
-          TARGET_FILE="project/desktop/index.html"
+          GH_PAGES_REPO_PATH="gh-pages-repo" # Define path to the checked-out gh-pages-repo
+          TARGET_FILE="$GH_PAGES_REPO_PATH/project/desktop/index.html"
           URL="${{ steps.get_url.outputs.url }}"
+          
+          cd $GH_PAGES_REPO_PATH # Change to the gh-pages-repo directory
           
           # Pull latest to avoid conflicts
           git pull
@@ -114,11 +124,13 @@ jobs:
           sed -i 's|<!-- MAGIC_STATUS_START -->.*<!-- MAGIC_STATUS_END -->|<!-- MAGIC_STATUS_START --><p class="text-xl font-bold text-green-500 animate-pulse">ONLINE</p><!-- MAGIC_STATUS_END -->|g' $TARGET_FILE
           
           # 2. Update HREF and style to Active (Blue button, clickable)
-          sed -i "s|<!-- MAGIC_HREF_START -->.*<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START --><a href=\"$URL\" target=\"_blank\" class=\"w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200\"><!-- MAGIC_HREF_END -->|g" $TARGET_FILE
+          sed -i "s|<!-- MAGIC_HREF_START -->.*<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START --><a href=\"$URL\" target=\"_blank\" class=\"w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200"><!-- MAGIC_HREF_END -->|g" $TARGET_FILE
           
           git add $TARGET_FILE
           git commit -m "Update desktop status: ONLINE"
           git push
+          
+          cd .. # Go back to the root of debian-gnome-headless
 
       - name: Wait for User Shutdown
         run: |
@@ -132,7 +144,10 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           
-          TARGET_FILE="project/desktop/index.html"
+          GH_PAGES_REPO_PATH="gh-pages-repo" # Define path to the checked-out gh-pages-repo
+          TARGET_FILE="$GH_PAGES_REPO_PATH/project/desktop/index.html"
+          
+          cd $GH_PAGES_REPO_PATH # Change to the gh-pages-repo directory
           
           # Pull latest
           git pull
@@ -141,11 +156,13 @@ jobs:
           sed -i 's|<!-- MAGIC_STATUS_START -->.*<!-- MAGIC_STATUS_END -->|<!-- MAGIC_STATUS_START --><p class="text-xl font-bold text-red-500">OFFLINE</p><!-- MAGIC_STATUS_END -->|g' $TARGET_FILE
           
           # 2. Revert HREF to # and style to Disabled (Gray)
-          sed -i 's|<!-- MAGIC_HREF_START -->.*<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START --><a href="#" target="_blank" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 cursor-not-allowed pointer-events-none transition-colors duration-200"><!-- MAGIC_HREF_END -->|g' $TARGET_FILE
+          sed -i 's|<!-- MAGIC_HREF_START -->.*<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START --><a href="#" target="_blank" class=\"w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 cursor-not-allowed pointer-events-none transition-colors duration-200"><!-- MAGIC_HREF_END -->|g' $TARGET_FILE
           
           git add $TARGET_FILE
           git commit -m "Update desktop status: OFFLINE"
           git push
+          
+          cd .. # Go back to the root of debian-gnome-headless
 
       - name: Cleanup Container
         if: always()
