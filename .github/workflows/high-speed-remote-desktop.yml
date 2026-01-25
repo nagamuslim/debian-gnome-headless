@@ -22,6 +22,10 @@ on:
           - 'VNC (HTTP)'
           - 'SSH (TCP)'
 
+# 1. PERMISSIONS REQUIRED TO COMMIT CHANGES
+permissions:
+  contents: write
+
 jobs:
   run-desktop:
     runs-on: ubuntu-latest
@@ -35,14 +39,11 @@ jobs:
         run: |
           cat <<EOF > Dockerfile
           FROM nagamuslim/debian-gnome-headless:latest
-
           # 1. Update butt version to 1.46.0 in installer.env
           RUN sed -i 's|butt-1.45.0-x86_64.AppImage|butt-1.46.0-x86_64.AppImage|g' /etc/installer.env && \
               sed -i 's|/release/1.45.0/|/release/1.46.0/|g' /etc/installer.env
-
           # 2. Patch noVNC HTML for Icecast Audio Plugin
-          RUN sed -i '/novnc-mediamtx-audio.js/d' /usr/share/novnc/vnc.html && \
-              sed -i 's|<\/head>|<script src="https://cdn.jsdelivr.net/npm/novnc-audio-plugin/novnc-icecast-audio.js" data-stream-path="/stream-fallback" defer></script><\/head>|g' /usr/share/novnc/vnc.html
+          RUN sed -i 's|<\/head>|<script src="https://cdn.jsdelivr.net/npm/novnc-audio-plugin/novnc-icecast-audio.js" data-stream-path="/stream-fallback" defer></script><\/head>|g' /usr/share/novnc/vnc.html
           EOF
 
       - name: Build Custom Image
@@ -64,7 +65,7 @@ jobs:
             nohup ngrok http 6901 --log=stdout > ngrok.log 2>&1 &
           fi
           
-          sleep 5
+          sleep 10
 
       - name: Start GNOME Headless
         run: |
@@ -79,29 +80,73 @@ jobs:
             my-custom-desktop
 
       - name: Get Connection URL
+        id: get_url
         run: |
-          echo "========================================================="
-          echo "   CONNECTION DETAILS   "
-          echo "========================================================="
           PUBLIC_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url')
           
+          # Handle SSH format vs HTTP format for display
           if [[ $PUBLIC_URL == tcp://* ]]; then
-            SSH_HOST=$(echo $PUBLIC_URL | sed 's|tcp://||')
-            echo "MODE: SSH (TCP)"
-            echo "Host: ${SSH_HOST%:*}, Port: ${SSH_HOST##*:}"
-            echo "Command: ssh debian@${SSH_HOST%:*} -p ${SSH_HOST##*:}"
+            # Convert tcp://0.tcp.ngrok.io:12345 to proper SSH display string if needed, 
+            # but for the HTML button, we might just want the raw link or instructions.
+            # For VNC it's a clickable URL. For SSH, we can't really make a browser link easily.
+            # Assuming VNC mostly based on HTML request:
+            FINAL_URL="$PUBLIC_URL"
           else
-            echo "MODE: VNC (HTTP)"
-            echo "URL: $PUBLIC_URL"
+            FINAL_URL="$PUBLIC_URL/vnc.html?password=debian&autoconnect=true"
           fi
-          echo "Password: debian"
-          echo "========================================================="
+          
+          echo "url=$FINAL_URL" >> $GITHUB_OUTPUT
+          echo "raw_url=$PUBLIC_URL" >> $GITHUB_OUTPUT
+
+      # 2. UPDATE HTML TO ONLINE STATE
+      - name: Update Website Status (Online)
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          
+          TARGET_FILE="project/desktop/index.html"
+          URL="${{ steps.get_url.outputs.url }}"
+          
+          # Pull latest to avoid conflicts
+          git pull
+          
+          # 1. Update Status Text to ONLINE (Green)
+          sed -i 's|<!-- MAGIC_STATUS_START -->.*<!-- MAGIC_STATUS_END -->|<!-- MAGIC_STATUS_START --><p class="text-xl font-bold text-green-500 animate-pulse">ONLINE</p><!-- MAGIC_STATUS_END -->|g' $TARGET_FILE
+          
+          # 2. Update HREF and style to Active (Blue button, clickable)
+          sed -i "s|<!-- MAGIC_HREF_START -->.*<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START --><a href=\"$URL\" target=\"_blank\" class=\"w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200\"><!-- MAGIC_HREF_END -->|g" $TARGET_FILE
+          
+          git add $TARGET_FILE
+          git commit -m "Update desktop status: ONLINE"
+          git push
 
       - name: Wait for User Shutdown
         run: |
-          echo "Container is running. Manual stop required via 'kill 1' or GitHub stop."
+          echo "Container is running. Connect here: ${{ steps.get_url.outputs.url }}"
           docker wait gnome-desktop
 
-      - name: Cleanup
+      # 3. RESET HTML TO OFFLINE STATE (Runs even if job is cancelled)
+      - name: Reset Website Status (Offline)
+        if: always() 
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          
+          TARGET_FILE="project/desktop/index.html"
+          
+          # Pull latest
+          git pull
+          
+          # 1. Revert Status to OFFLINE (Red)
+          sed -i 's|<!-- MAGIC_STATUS_START -->.*<!-- MAGIC_STATUS_END -->|<!-- MAGIC_STATUS_START --><p class="text-xl font-bold text-red-500">OFFLINE</p><!-- MAGIC_STATUS_END -->|g' $TARGET_FILE
+          
+          # 2. Revert HREF to # and style to Disabled (Gray)
+          sed -i 's|<!-- MAGIC_HREF_START -->.*<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START --><a href="#" target="_blank" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 cursor-not-allowed pointer-events-none transition-colors duration-200"><!-- MAGIC_HREF_END -->|g' $TARGET_FILE
+          
+          git add $TARGET_FILE
+          git commit -m "Update desktop status: OFFLINE"
+          git push
+
+      - name: Cleanup Container
         if: always()
         run: docker rm -f gnome-desktop
