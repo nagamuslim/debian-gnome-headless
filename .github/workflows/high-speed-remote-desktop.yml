@@ -64,7 +64,7 @@ jobs:
             echo '    echo "Waiting for Tor Browser directory: $TOR_BROWSER_DIR" >> "$LOG_FILE" 2>&1' >> /usr/local/bin/patch_tor_browser.sh && \
             echo '    sleep 10' >> /usr/local/bin/patch_tor_browser.sh && \
             echo 'done' >> /usr/local/bin/patch_tor_browser.sh && \
-            echo 'echo "Tor Browser directory found." >> "$LOG_FILE" 2>&1' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo 'echo "Tor Browser directory found." "$LOG_FILE" 2>&1' >> /usr/local/bin/patch_tor_browser.sh && \
             echo '' >> /usr/local/bin/patch_tor_browser.sh && \
             echo '# Wait for torrc file to exist' >> /usr/local/bin/patch_tor_browser.sh && \
             echo 'while [ ! -f "$TORRC_FILE" ]; do' >> /usr/local/bin/patch_tor_browser.sh && \
@@ -75,12 +75,12 @@ jobs:
             echo '' >> /usr/local/bin/patch_tor_browser.sh && \
             echo '# Append ExitNodes and StrictNodes if not already present' >> /usr/local/bin/patch_tor_browser.sh && \
             echo 'if ! grep -q "ExitNodes {id}" "$TORRC_FILE"; then' >> /usr/local/bin/patch_tor_browser.sh && \
-            echo '    echo "Appending ExitNodes {id} to $TORRC_FILE" >> "$LOG_FILE" 2>&1' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo '    echo "Appending ExitNodes {id} to "$TORRC_FILE" >> "$LOG_FILE" 2>&1' >> /usr/local/bin/patch_tor_browser.sh && \
             echo '    echo "ExitNodes {id}" >> "$TORRC_FILE"' >> /usr/local/bin/patch_tor_browser.sh && \
             echo 'fi' >> /usr/local/bin/patch_tor_browser.sh && \
             echo '' >> /usr/local/bin/patch_tor_browser.sh && \
             echo 'if ! grep -q "StrictNodes 1" "$TORRC_FILE"; then' >> /usr/local/bin/patch_tor_browser.sh && \
-            echo '    echo "Appending StrictNodes 1 to $TORRC_FILE" >> "$LOG_FILE" 2>&1' >> /usr/local/bin/patch_tor_browser.sh && \
+            echo '    echo "Appending StrictNodes 1 to "$TORRC_FILE" >> "$LOG_FILE" 2>&1' >> /usr/local/bin/patch_tor_browser.sh && \
             echo '    echo "StrictNodes 1" >> "$TORRC_FILE"' >> /usr/local/bin/patch_tor_browser.sh && \
             echo 'fi' >> /usr/local/bin/patch_tor_browser.sh && \
             echo 'echo "Tor Browser exit node configuration applied." >> "$LOG_FILE" 2>&1' >> /usr/local/bin/patch_tor_browser.sh && \
@@ -147,6 +147,7 @@ jobs:
       - name: Modify HTML File (Online)
         run: |
           TARGET_FILE="gh-pages-repo/project/desktop/index.html" 
+          # Important: The link is at https://nagamuslim.github.io/project/desktop/
           MODE="${{ steps.get_url.outputs.mode }}"
           URL="${{ steps.get_url.outputs.full_url }}"
           DATE=$(date)
@@ -198,6 +199,7 @@ jobs:
         if: always() 
         run: |
           TARGET_FILE="gh-pages-repo/project/desktop/index.html"
+          # Important: The link is at https://nagamuslim.github.io/project/desktop/
           
           # 1. Reset Status
           perl -0777 -i -pe "s|<!-- MAGIC_STATUS_START -->.*?<!-- MAGIC_STATUS_END -->|<!-- MAGIC_STATUS_START -->\n<p class=\"text-xl font-bold text-red-500\">OFFLINE</p>\n<!-- MAGIC_STATUS_END -->|s" $TARGET_FILE
