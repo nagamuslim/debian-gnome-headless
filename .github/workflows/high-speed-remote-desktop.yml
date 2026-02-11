@@ -162,7 +162,7 @@ jobs:
             AI_JSON="<!-- AI_DATA: { \"mode\": \"ssh\", \"host\": \"$HOST\", \"port\": \"$PORT\", \"user\": \"debian\", \"pass\": \"debian\", \"command\": \"ssh -p $PORT debian@$HOST\" } -->"
             
             # Create Human/AI Readable Code Block
-            HTML_BLOCK="<div class=\"bg-gray-900 p-4 rounded text-left font-mono text-sm text-green-400 break-all select-all\">ssh -p $PORT debian@$HOST<br><span class=\"text-gray-500\"># Password: debian</span></div>$AI_JSON"
+            HTML_BLOCK="<div class=\"bg-gray-900 p-4 rounded text-left font-mono text-sm text-green-400 break-all select-all\">ssh -p $PORT debian@$HOST<br><span class=\"text-gray-500\"># Password: debian</span><br><span class=\"text-gray-600 text-xs select-all\"># Raw: $URL</span></div>$AI_JSON"
             
             perl -0777 -i -pe "s|<!-- MAGIC_HREF_START -->.*?<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START -->\n$HTML_BLOCK\n<!-- MAGIC_HREF_END -->|s" $TARGET_FILE
           
