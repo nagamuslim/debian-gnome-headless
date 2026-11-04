@@ -28,7 +28,7 @@ permissions:
 jobs:
   run-desktop:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 300
 
     steps:
       - name: Checkout debian-gnome-headless
@@ -46,8 +46,8 @@ jobs:
         run: |
           cat <<'EOF' > Dockerfile
           FROM nagamuslim/debian-gnome-headless:latest
-          RUN sed -i 's|butt-1.45.0-x86_64.AppImage|butt-1.46.0-x86_64.AppImage|g' /etc/installer.env && \
-              sed -i 's|/release/1.45.0/|/release/1.46.0/|g' /etc/installer.env
+          RUN sed -i 's|butt-1.45.0-x86_64.AppImage|butt-1.47.0-x86_64.AppImage|g' /etc/installer.env && \
+              sed -i 's|/release/1.45.0/|/release/1.47.0/|g' /etc/installer.env
           RUN sed -i '/novnc-mediamtx-audio.js/d' /usr/share/novnc/vnc.html && sed -i 's|<\/head>|<script src="https://cdn.jsdelivr.net/npm/novnc-audio-plugin/novnc-icecast-audio.js" data-stream-path="/stream-fallback" defer></script><\/head>|g' /usr/share/novnc/vnc.html
           # --- Create Standalone Tor Browser Patching Script ---
           RUN echo '#!/bin/bash' > /usr/local/bin/patch_tor_browser.sh && \
@@ -146,34 +146,41 @@ jobs:
       
       - name: Modify HTML File (Online)
         run: |
-          TARGET_FILE="gh-pages-repo/project/desktop/index.html" 
+          TARGET_FILE="gh-pages-repo/project/desktop/index.html"
           # Important: The link is at https://nagamuslim.github.io/project/desktop/
           MODE="${{ steps.get_url.outputs.mode }}"
           URL="${{ steps.get_url.outputs.full_url }}"
           DATE=$(date)
-          
+
+          # Replace the text between two marker comments with $3.
+          # Values are passed via the environment and read with $ENV{...} so Perl never
+          # interpolates them (the old version turned "debian@2.tcp..." into "debian.tcp...",
+          # because Perl treated "@2" as an array variable).
+          replace_block() {
+            START="$1" END="$2" BODY="$3" \
+              perl -0777 -i -pe 's|\Q$ENV{START}\E.*?\Q$ENV{END}\E|"$ENV{START}\n$ENV{BODY}\n$ENV{END}"|se' "$TARGET_FILE"
+          }
+
           # 1. Update Status to ONLINE
-          perl -0777 -i -pe "s|<!-- MAGIC_STATUS_START -->.*?<!-- MAGIC_STATUS_END -->|<!-- MAGIC_STATUS_START -->\n<p class=\"text-xl font-bold text-green-500 animate-pulse\">ONLINE ($MODE)</p>\n<!-- MAGIC_STATUS_END -->|s" $TARGET_FILE
-          
+          replace_block "<!-- MAGIC_STATUS_START -->" "<!-- MAGIC_STATUS_END -->" \
+            "<p class=\"text-xl font-bold text-green-500 animate-pulse\">ONLINE ($MODE)</p>"
+
           if [[ "$MODE" == "SSH" ]]; then
             HOST="${{ steps.get_url.outputs.host }}"
             PORT="${{ steps.get_url.outputs.port }}"
-            
+
             # Create AI-Friendly JSON Block
             AI_JSON="<!-- AI_DATA: { \"mode\": \"ssh\", \"host\": \"$HOST\", \"port\": \"$PORT\", \"user\": \"debian\", \"pass\": \"debian\", \"command\": \"ssh -p $PORT debian@$HOST\" } -->"
-            
+
             # Create Human/AI Readable Code Block
             HTML_BLOCK="<div class=\"bg-gray-900 p-4 rounded text-left font-mono text-sm text-green-400 break-all select-all\">ssh -p $PORT debian@$HOST<br><span class=\"text-gray-500\"># Password: debian</span><br><span class=\"text-gray-600 text-xs select-all\"># Raw: $URL</span></div>$AI_JSON"
-            
-            perl -0777 -i -pe "s|<!-- MAGIC_HREF_START -->.*?<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START -->\n$HTML_BLOCK\n<!-- MAGIC_HREF_END -->|s" $TARGET_FILE
-          
           else
             # VNC MODE (Standard Button)
             HTML_BLOCK="<a href=\"$URL\" target=\"_blank\" class=\"w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200\">Connect via NoVNC</a>"
-            
-            perl -0777 -i -pe "s|<!-- MAGIC_HREF_START -->.*?<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START -->\n$HTML_BLOCK\n<!-- MAGIC_HREF_END -->|s" $TARGET_FILE
           fi
-          
+
+          replace_block "<!-- MAGIC_HREF_START -->" "<!-- MAGIC_HREF_END -->" "$HTML_BLOCK"
+
           # Force git update with timestamp
           sed -i '$d' $TARGET_FILE
           echo "<!-- UPDATED: $DATE -->" >> $TARGET_FILE
@@ -188,7 +195,7 @@ jobs:
 
       - name: Wait for User Shutdown
         run: |
-          echo "Container is running. Connect here: ${{ steps.get_url.outputs.url }}"
+          echo "Container is running. Connect here: ${{ steps.get_url.outputs.full_url }}"
           docker wait gnome-desktop
 
       # ---------------------------------------------------------
