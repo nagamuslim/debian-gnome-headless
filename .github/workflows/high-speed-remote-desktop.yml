@@ -130,18 +130,29 @@ jobs:
 
       - name: Start Serveo Tunnel (SSH)
         id: serveo
-        if: ${{ github.event.inputs.connection_mode == 'SSH (TCP)' && github.event.inputs.ssh_provider == 'Serveo' }}
+        if: ${{ github.event.inputs.connection_mode == 'SSH (TCP)' && github.event.inputs.ssh_provider == 'Serveo') }}
         run: |
-          # Verify Serveo's host key against its published fingerprint instead of trusting blindly.
-          # If Serveo ever rotates its key, this step fails safely: check https://serveo.net/docs/
-          # and update EXPECTED_FP.
+          # Serveo closes ssh-keyscan connections, so do not scan: pre-seed the host key instead.
+          # This key's SHA256 fingerprint matches the one published at https://serveo.net/docs/
+          # (checked independently). If Serveo ever rotates its key, ssh below fails with
+          # "Host key verification failed" (safe); get the new key and fingerprint from the docs.
           EXPECTED_FP="SHA256:GnmVK+70U6GqbupoV+gg7LnHHUsW1IjrK0cLqvDJxIk"
-          ssh-keyscan -t ed25519 serveo.net 2>/dev/null > serveo_hostkey
-          ACTUAL_FP=$(ssh-keygen -lf serveo_hostkey | awk '{print $2}')
+          echo "serveo.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGX8CMtRKSA58fmA3I6oat6+7Z6VUwGbzYUE5FVrA3g1" > serveo_hostkey
+          ACTUAL_FP=$(ssh-keygen -lf serveo_hostkey | awk 'NR==1{print $2}')
           if [[ "$ACTUAL_FP" != "$EXPECTED_FP" ]]; then
-            echo "::error::Serveo host key mismatch (got '$ACTUAL_FP')"
+            echo "::error::Pinned Serveo key does not match expected fingerprint (got '$ACTUAL_FP')"
             exit 1
           fi
+
+          # Diagnostics: is serveo.net reachable on the SSH ports?
+          for P in 22 443; do
+            if timeout 10 bash -c "</dev/tcp/serveo.net/$P" 2>/dev/null; then
+              echo "serveo.net:$P reachable"
+            else
+              echo "serveo.net:$P NOT reachable"
+            fi
+          done
+
           mkdir -p ~/.ssh && cat serveo_hostkey >> ~/.ssh/known_hosts
 
           # Private alias, unique per run. Serveo documents aliases as routing names,
@@ -215,7 +226,7 @@ jobs:
 
           # 1. Update Status to ONLINE
           replace_block "<!-- MAGIC_STATUS_START -->" "<!-- MAGIC_STATUS_END -->" \
-            "<p class=\"text-xl font-bold text-green-500 animate-pulse\">ONLINE ($MODE)</p>"
+            "<p class="text-xl font-bold text-green-500 animate-pulse">ONLINE ($MODE)</p>"
 
           if [[ "$MODE" == "SSH" ]]; then
             HOST="${{ steps.get_url.outputs.host || steps.serveo.outputs.host }}"
@@ -224,13 +235,13 @@ jobs:
             CMD="${{ steps.get_url.outputs.command || steps.serveo.outputs.command }}"
 
             # Create AI-Friendly JSON Block
-            AI_JSON="<!-- AI_DATA: { \"mode\": \"ssh\", \"host\": \"$HOST\", \"port\": \"$PORT\", \"user\": \"debian\", \"pass\": \"debian\", \"jump\": \"$JUMP\", \"command\": \"$CMD\" } -->"
+            AI_JSON="<!-- AI_DATA: { "mode": "ssh", "host": "$HOST", "port": "$PORT", "user": "debian", "pass": "debian", "jump": "$JUMP", "command": "$CMD" } -->"
 
             # Create Human/AI Readable Code Block
-            HTML_BLOCK="<div class=\"bg-gray-900 p-4 rounded text-left font-mono text-sm text-green-400 break-all select-all\">$CMD<br><span class=\"text-gray-500\"># Password: debian</span><br><span class=\"text-gray-600 text-xs select-all\"># Raw: $URL</span></div>$AI_JSON"
+            HTML_BLOCK="<div class="bg-gray-900 p-4 rounded text-left font-mono text-sm text-green-400 break-all select-all">$CMD<br><span class="text-gray-500"># Password: debian</span><br><span class="text-gray-600 text-xs select-all"># Raw: $URL</span></div>$AI_JSON"
           else
             # VNC MODE (Standard Button)
-            HTML_BLOCK="<a href=\"$URL\" target=\"_blank\" class=\"w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200\">Connect via NoVNC</a>"
+            HTML_BLOCK="<a href="$URL" target="_blank" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200">Connect via NoVNC</a>"
           fi
 
           replace_block "<!-- MAGIC_HREF_START -->" "<!-- MAGIC_HREF_END -->" "$HTML_BLOCK"
@@ -263,10 +274,10 @@ jobs:
           # Important: The link is at https://nagamuslim.github.io/project/desktop/
           
           # 1. Reset Status
-          perl -0777 -i -pe "s|<!-- MAGIC_STATUS_START -->.*?<!-- MAGIC_STATUS_END -->|<!-- MAGIC_STATUS_START -->\n<p class=\"text-xl font-bold text-red-500\">OFFLINE</p>\n<!-- MAGIC_STATUS_END -->|s" $TARGET_FILE
+          perl -0777 -i -pe "s|<!-- MAGIC_STATUS_START -->.*?<!-- MAGIC_STATUS_END -->|<!-- MAGIC_STATUS_START -->\n<p class="text-xl font-bold text-red-500">OFFLINE</p>\n<!-- MAGIC_STATUS_END -->|s" $TARGET_FILE
           
           # 2. Reset Button
-          perl -0777 -i -pe "s|<!-- MAGIC_HREF_START -->.*?<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START -->\n<a href=\"#\" target=\"_blank\" class=\"w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 cursor-not-allowed pointer-events-none transition-colors duration-200\">Connect via NoVNC</a>\n<!-- MAGIC_HREF_END -->|s" $TARGET_FILE
+          perl -0777 -i -pe "s|<!-- MAGIC_HREF_START -->.*?<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START -->\n<a href="#" target="_blank" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 cursor-not-allowed pointer-events-none transition-colors duration-200">Connect via NoVNC</a>\n<!-- MAGIC_HREF_END -->|s" $TARGET_FILE
 
           # 3. Remove the timestamp line we added earlier so the file is clean
           sed -i '$d' $TARGET_FILE
