@@ -130,7 +130,7 @@ jobs:
 
       - name: Start Serveo Tunnel (SSH)
         id: serveo
-        if: ${{ github.event.inputs.connection_mode == 'SSH (TCP)' && github.event.inputs.ssh_provider == 'Serveo') }}
+        if: ${{ github.event.inputs.connection_mode == 'SSH (TCP)' && github.event.inputs.ssh_provider == 'Serveo' }}
         run: |
           # Serveo closes ssh-keyscan connections, so do not scan: pre-seed the host key instead.
           # This key's SHA256 fingerprint matches the one published at https://serveo.net/docs/
