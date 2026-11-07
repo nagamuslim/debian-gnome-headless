@@ -21,6 +21,14 @@ on:
         options:
           - 'VNC (HTTP)'
           - 'SSH (TCP)'
+      ssh_provider:
+        description: 'SSH tunnel provider (only used when Connection Mode is SSH)'
+        required: true
+        default: 'ngrok'
+        type: choice
+        options:
+          - 'ngrok'
+          - 'Serveo'
 
 permissions:
   contents: write
@@ -46,8 +54,8 @@ jobs:
         run: |
           cat <<'EOF' > Dockerfile
           FROM nagamuslim/debian-gnome-headless:latest
-          RUN sed -i 's|butt-1.45.0-x86_64.AppImage|butt-1.47.0-x86_64.AppImage|g' /etc/installer.env && \
-              sed -i 's|/release/1.45.0/|/release/1.47.0/|g' /etc/installer.env
+          RUN sed -i 's|butt-1.45.0-x86_64.AppImage|butt-1.46.0-x86_64.AppImage|g' /etc/installer.env && \
+              sed -i 's|/release/1.45.0/|/release/1.46.0/|g' /etc/installer.env
           RUN sed -i '/novnc-mediamtx-audio.js/d' /usr/share/novnc/vnc.html && sed -i 's|<\/head>|<script src="https://cdn.jsdelivr.net/npm/novnc-audio-plugin/novnc-icecast-audio.js" data-stream-path="/stream-fallback" defer></script><\/head>|g' /usr/share/novnc/vnc.html
           # --- Create Standalone Tor Browser Patching Script ---
           RUN echo '#!/bin/bash' > /usr/local/bin/patch_tor_browser.sh && \
@@ -93,6 +101,7 @@ jobs:
         run: docker build -t my-custom-desktop .
 
       - name: Start Ngrok Tunnel
+        if: ${{ !(github.event.inputs.connection_mode == 'SSH (TCP)' && github.event.inputs.ssh_provider == 'Serveo') }}
         env:
           NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
         run: |
@@ -119,8 +128,50 @@ jobs:
             -e res=${{ github.event.inputs.screen_res }} \
             my-custom-desktop
 
+      - name: Start Serveo Tunnel (SSH)
+        id: serveo
+        if: ${{ github.event.inputs.connection_mode == 'SSH (TCP)' && github.event.inputs.ssh_provider == 'Serveo' }}
+        run: |
+          # Verify Serveo's host key against its published fingerprint instead of trusting blindly.
+          # If Serveo ever rotates its key, this step fails safely: check https://serveo.net/docs/
+          # and update EXPECTED_FP.
+          EXPECTED_FP="SHA256:GnmVK+70U6GqbupoV+gg7LnHHUsW1IjrK0cLqvDJxIk"
+          ssh-keyscan -t ed25519 serveo.net 2>/dev/null > serveo_hostkey
+          ACTUAL_FP=$(ssh-keygen -lf serveo_hostkey | awk '{print $2}')
+          if [[ "$ACTUAL_FP" != "$EXPECTED_FP" ]]; then
+            echo "::error::Serveo host key mismatch (got '$ACTUAL_FP')"
+            exit 1
+          fi
+          mkdir -p ~/.ssh && cat serveo_hostkey >> ~/.ssh/known_hosts
+
+          # Private alias, unique per run. Serveo documents aliases as routing names,
+          # not as an authentication boundary, so keep SSH auth enabled in the container.
+          ALIAS="gh-$(openssl rand -hex 8)"
+          nohup ssh -T \
+            -o StrictHostKeyChecking=yes \
+            -o ExitOnForwardFailure=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+            -R "$ALIAS:22:localhost:2022" serveo.net \
+            < /dev/null > serveo.log 2>&1 &
+          SSH_PID=$!
+          sleep 10
+          echo "--- serveo.log ---"
+          cat serveo.log
+          if ! kill -0 "$SSH_PID" 2>/dev/null; then
+            echo "::error::Serveo tunnel exited early, see log above"
+            exit 1
+          fi
+
+          echo "mode=SSH" >> $GITHUB_OUTPUT
+          echo "host=$ALIAS" >> $GITHUB_OUTPUT
+          echo "port=22" >> $GITHUB_OUTPUT
+          echo "jump=serveo.net" >> $GITHUB_OUTPUT
+          echo "command=ssh -J serveo.net debian@$ALIAS" >> $GITHUB_OUTPUT
+          echo "full_url=serveo.net -> $ALIAS:22" >> $GITHUB_OUTPUT
+
       - name: Get Connection URL
         id: get_url
+        if: ${{ !(github.event.inputs.connection_mode == 'SSH (TCP)' && github.event.inputs.ssh_provider == 'Serveo') }}
         run: |
           PUBLIC_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url')
           
@@ -135,6 +186,7 @@ jobs:
             echo "host=$HOST" >> $GITHUB_OUTPUT
             echo "port=$PORT" >> $GITHUB_OUTPUT
             echo "full_url=$PUBLIC_URL" >> $GITHUB_OUTPUT
+            echo "command=ssh -p $PORT debian@$HOST" >> $GITHUB_OUTPUT
           else
             echo "mode=VNC" >> $GITHUB_OUTPUT
             echo "full_url=$PUBLIC_URL/vnc.html?password=debian&autoconnect=true" >> $GITHUB_OUTPUT
@@ -148,8 +200,8 @@ jobs:
         run: |
           TARGET_FILE="gh-pages-repo/project/desktop/index.html"
           # Important: The link is at https://nagamuslim.github.io/project/desktop/
-          MODE="${{ steps.get_url.outputs.mode }}"
-          URL="${{ steps.get_url.outputs.full_url }}"
+          MODE="${{ steps.get_url.outputs.mode || steps.serveo.outputs.mode }}"
+          URL="${{ steps.get_url.outputs.full_url || steps.serveo.outputs.full_url }}"
           DATE=$(date)
 
           # Replace the text between two marker comments with $3.
@@ -166,14 +218,16 @@ jobs:
             "<p class=\"text-xl font-bold text-green-500 animate-pulse\">ONLINE ($MODE)</p>"
 
           if [[ "$MODE" == "SSH" ]]; then
-            HOST="${{ steps.get_url.outputs.host }}"
-            PORT="${{ steps.get_url.outputs.port }}"
+            HOST="${{ steps.get_url.outputs.host || steps.serveo.outputs.host }}"
+            PORT="${{ steps.get_url.outputs.port || steps.serveo.outputs.port }}"
+            JUMP="${{ steps.serveo.outputs.jump }}"
+            CMD="${{ steps.get_url.outputs.command || steps.serveo.outputs.command }}"
 
             # Create AI-Friendly JSON Block
-            AI_JSON="<!-- AI_DATA: { \"mode\": \"ssh\", \"host\": \"$HOST\", \"port\": \"$PORT\", \"user\": \"debian\", \"pass\": \"debian\", \"command\": \"ssh -p $PORT debian@$HOST\" } -->"
+            AI_JSON="<!-- AI_DATA: { \"mode\": \"ssh\", \"host\": \"$HOST\", \"port\": \"$PORT\", \"user\": \"debian\", \"pass\": \"debian\", \"jump\": \"$JUMP\", \"command\": \"$CMD\" } -->"
 
             # Create Human/AI Readable Code Block
-            HTML_BLOCK="<div class=\"bg-gray-900 p-4 rounded text-left font-mono text-sm text-green-400 break-all select-all\">ssh -p $PORT debian@$HOST<br><span class=\"text-gray-500\"># Password: debian</span><br><span class=\"text-gray-600 text-xs select-all\"># Raw: $URL</span></div>$AI_JSON"
+            HTML_BLOCK="<div class=\"bg-gray-900 p-4 rounded text-left font-mono text-sm text-green-400 break-all select-all\">$CMD<br><span class=\"text-gray-500\"># Password: debian</span><br><span class=\"text-gray-600 text-xs select-all\"># Raw: $URL</span></div>$AI_JSON"
           else
             # VNC MODE (Standard Button)
             HTML_BLOCK="<a href=\"$URL\" target=\"_blank\" class=\"w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200\">Connect via NoVNC</a>"
@@ -195,7 +249,7 @@ jobs:
 
       - name: Wait for User Shutdown
         run: |
-          echo "Container is running. Connect here: ${{ steps.get_url.outputs.full_url }}"
+          echo "Container is running. Connect here: ${{ steps.get_url.outputs.full_url || steps.serveo.outputs.full_url }}"
           docker wait gnome-desktop
 
       # ---------------------------------------------------------
