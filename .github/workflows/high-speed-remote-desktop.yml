@@ -22,13 +22,14 @@ on:
           - 'VNC (HTTP)'
           - 'SSH (TCP)'
       ssh_provider:
-        description: 'SSH tunnel provider (only used when Connection Mode is SSH)'
+        description: 'Tunnel provider (Serveo is SSH only; ngrok is used for VNC if Serveo is picked)'
         required: true
         default: 'ngrok'
         type: choice
         options:
           - 'ngrok'
           - 'Serveo'
+          - 'Cloudflare'
 
 permissions:
   contents: write
@@ -101,7 +102,7 @@ jobs:
         run: docker build -t my-custom-desktop .
 
       - name: Start Ngrok Tunnel
-        if: ${{ !(github.event.inputs.connection_mode == 'SSH (TCP)' && github.event.inputs.ssh_provider == 'Serveo') }}
+        if: ${{ !(github.event.inputs.ssh_provider == 'Cloudflare' || (github.event.inputs.connection_mode == 'SSH (TCP)' && github.event.inputs.ssh_provider == 'Serveo')) }}
         env:
           NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
         run: |
@@ -127,6 +128,59 @@ jobs:
             -e DEFAULT_TZ=Asia/Jakarta \
             -e res=${{ github.event.inputs.screen_res }} \
             my-custom-desktop
+
+      - name: Start Cloudflare Tunnel
+        id: cloudflare
+        if: ${{ github.event.inputs.ssh_provider == 'Cloudflare' }}
+        env:
+          CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
+          CF_SSH_HOSTNAME: ${{ vars.CF_SSH_HOSTNAME }}
+          CF_VNC_URL: ${{ vars.CF_VNC_URL }}
+        run: |
+          # The tunnel token is a credential: keep it in the CLOUDFLARE_TUNNEL_TOKEN secret only.
+          # Public hostnames are configured in the Cloudflare dashboard (remotely-managed tunnel):
+          #   SSH hostname -> ssh://localhost:2022      VNC hostname -> http://localhost:6901
+          if [[ -z "$CLOUDFLARE_TUNNEL_TOKEN" ]]; then
+            echo "::error::Secret CLOUDFLARE_TUNNEL_TOKEN is not set"; exit 1
+          fi
+          if [[ "${{ github.event.inputs.connection_mode }}" == "SSH (TCP)" ]]; then
+            [[ -n "$CF_SSH_HOSTNAME" ]] || { echo "::error::Repository variable CF_SSH_HOSTNAME is not set"; exit 1; }
+          else
+            [[ -n "$CF_VNC_URL" ]] || { echo "::error::Repository variable CF_VNC_URL is not set"; exit 1; }
+          fi
+
+          sudo mkdir -p --mode=0755 /usr/share/keyrings
+          curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
+          echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main' | sudo tee /etc/apt/sources.list.d/cloudflared.list
+          sudo apt-get update && sudo apt-get install -y cloudflared
+          cloudflared --version
+
+          nohup cloudflared tunnel --no-autoupdate run --token "$CLOUDFLARE_TUNNEL_TOKEN" > cloudflared.log 2>&1 &
+          CF_PID=$!
+          for i in $(seq 1 30); do
+            grep -q "Registered tunnel connection" cloudflared.log && break
+            kill -0 "$CF_PID" 2>/dev/null || break
+            sleep 2
+          done
+          echo "--- cloudflared.log ---"
+          cat cloudflared.log
+          if ! grep -q "Registered tunnel connection" cloudflared.log; then
+            echo "::error::cloudflared did not register a tunnel connection, see log above"
+            exit 1
+          fi
+
+          if [[ "${{ github.event.inputs.connection_mode }}" == "SSH (TCP)" ]]; then
+            echo "mode=SSH" >> $GITHUB_OUTPUT
+            echo "host=$CF_SSH_HOSTNAME" >> $GITHUB_OUTPUT
+            echo "port=22" >> $GITHUB_OUTPUT
+            echo "command=ssh -o ProxyCommand='cloudflared access ssh --hostname %h' debian@$CF_SSH_HOSTNAME" >> $GITHUB_OUTPUT
+            echo "full_url=ssh://$CF_SSH_HOSTNAME" >> $GITHUB_OUTPUT
+          else
+            BASE="${CF_VNC_URL%/}"
+            [[ "$BASE" == http* ]] || BASE="https://$BASE"
+            echo "mode=VNC" >> $GITHUB_OUTPUT
+            echo "full_url=$BASE/vnc.html?password=debian&autoconnect=true" >> $GITHUB_OUTPUT
+          fi
 
       - name: Start Serveo Tunnel (SSH)
         id: serveo
@@ -182,7 +236,7 @@ jobs:
 
       - name: Get Connection URL
         id: get_url
-        if: ${{ !(github.event.inputs.connection_mode == 'SSH (TCP)' && github.event.inputs.ssh_provider == 'Serveo') }}
+        if: ${{ !(github.event.inputs.ssh_provider == 'Cloudflare' || (github.event.inputs.connection_mode == 'SSH (TCP)' && github.event.inputs.ssh_provider == 'Serveo')) }}
         run: |
           PUBLIC_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url')
           
@@ -211,8 +265,8 @@ jobs:
         run: |
           TARGET_FILE="gh-pages-repo/project/desktop/index.html"
           # Important: The link is at https://nagamuslim.github.io/project/desktop/
-          MODE="${{ steps.get_url.outputs.mode || steps.serveo.outputs.mode }}"
-          URL="${{ steps.get_url.outputs.full_url || steps.serveo.outputs.full_url }}"
+          MODE="${{ steps.get_url.outputs.mode || steps.serveo.outputs.mode || steps.cloudflare.outputs.mode }}"
+          URL="${{ steps.get_url.outputs.full_url || steps.serveo.outputs.full_url || steps.cloudflare.outputs.full_url }}"
           DATE=$(date)
 
           # Replace the text between two marker comments with $3.
@@ -226,22 +280,22 @@ jobs:
 
           # 1. Update Status to ONLINE
           replace_block "<!-- MAGIC_STATUS_START -->" "<!-- MAGIC_STATUS_END -->" \
-            "<p class="text-xl font-bold text-green-500 animate-pulse">ONLINE ($MODE)</p>"
+            "<p class=\"text-xl font-bold text-green-500 animate-pulse\">ONLINE ($MODE)</p>"
 
           if [[ "$MODE" == "SSH" ]]; then
-            HOST="${{ steps.get_url.outputs.host || steps.serveo.outputs.host }}"
-            PORT="${{ steps.get_url.outputs.port || steps.serveo.outputs.port }}"
+            HOST="${{ steps.get_url.outputs.host || steps.serveo.outputs.host || steps.cloudflare.outputs.host }}"
+            PORT="${{ steps.get_url.outputs.port || steps.serveo.outputs.port || steps.cloudflare.outputs.port }}"
             JUMP="${{ steps.serveo.outputs.jump }}"
-            CMD="${{ steps.get_url.outputs.command || steps.serveo.outputs.command }}"
+            CMD="${{ steps.get_url.outputs.command || steps.serveo.outputs.command || steps.cloudflare.outputs.command }}"
 
             # Create AI-Friendly JSON Block
-            AI_JSON="<!-- AI_DATA: { "mode": "ssh", "host": "$HOST", "port": "$PORT", "user": "debian", "pass": "debian", "jump": "$JUMP", "command": "$CMD" } -->"
+            AI_JSON="<!-- AI_DATA: { \"mode\": \"ssh\", \"host\": \"$HOST\", \"port\": \"$PORT\", \"user\": \"debian\", \"pass\": \"debian\", \"jump\": \"$JUMP\", \"command\": \"$CMD\" } -->"
 
             # Create Human/AI Readable Code Block
-            HTML_BLOCK="<div class="bg-gray-900 p-4 rounded text-left font-mono text-sm text-green-400 break-all select-all">$CMD<br><span class="text-gray-500"># Password: debian</span><br><span class="text-gray-600 text-xs select-all"># Raw: $URL</span></div>$AI_JSON"
+            HTML_BLOCK="<div class=\"bg-gray-900 p-4 rounded text-left font-mono text-sm text-green-400 break-all select-all\">$CMD<br><span class=\"text-gray-500\"># Password: debian</span><br><span class=\"text-gray-600 text-xs select-all\"># Raw: $URL</span></div>$AI_JSON"
           else
             # VNC MODE (Standard Button)
-            HTML_BLOCK="<a href="$URL" target="_blank" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200">Connect via NoVNC</a>"
+            HTML_BLOCK="<a href=\"$URL\" target=\"_blank\" class=\"w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200\">Connect via NoVNC</a>"
           fi
 
           replace_block "<!-- MAGIC_HREF_START -->" "<!-- MAGIC_HREF_END -->" "$HTML_BLOCK"
@@ -260,7 +314,7 @@ jobs:
 
       - name: Wait for User Shutdown
         run: |
-          echo "Container is running. Connect here: ${{ steps.get_url.outputs.full_url || steps.serveo.outputs.full_url }}"
+          echo "Container is running. Connect here: ${{ steps.get_url.outputs.full_url || steps.serveo.outputs.full_url || steps.cloudflare.outputs.full_url }}"
           docker wait gnome-desktop
 
       # ---------------------------------------------------------
@@ -274,10 +328,10 @@ jobs:
           # Important: The link is at https://nagamuslim.github.io/project/desktop/
           
           # 1. Reset Status
-          perl -0777 -i -pe "s|<!-- MAGIC_STATUS_START -->.*?<!-- MAGIC_STATUS_END -->|<!-- MAGIC_STATUS_START -->\n<p class="text-xl font-bold text-red-500">OFFLINE</p>\n<!-- MAGIC_STATUS_END -->|s" $TARGET_FILE
+          perl -0777 -i -pe "s|<!-- MAGIC_STATUS_START -->.*?<!-- MAGIC_STATUS_END -->|<!-- MAGIC_STATUS_START -->\n<p class=\"text-xl font-bold text-red-500\">OFFLINE</p>\n<!-- MAGIC_STATUS_END -->|s" $TARGET_FILE
           
           # 2. Reset Button
-          perl -0777 -i -pe "s|<!-- MAGIC_HREF_START -->.*?<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START -->\n<a href="#" target="_blank" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 cursor-not-allowed pointer-events-none transition-colors duration-200">Connect via NoVNC</a>\n<!-- MAGIC_HREF_END -->|s" $TARGET_FILE
+          perl -0777 -i -pe "s|<!-- MAGIC_HREF_START -->.*?<!-- MAGIC_HREF_END -->|<!-- MAGIC_HREF_START -->\n<a href=\"#\" target=\"_blank\" class=\"w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 cursor-not-allowed pointer-events-none transition-colors duration-200\">Connect via NoVNC</a>\n<!-- MAGIC_HREF_END -->|s" $TARGET_FILE
 
           # 3. Remove the timestamp line we added earlier so the file is clean
           sed -i '$d' $TARGET_FILE
