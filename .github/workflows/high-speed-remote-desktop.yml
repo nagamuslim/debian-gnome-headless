@@ -137,16 +137,22 @@ jobs:
           CF_SSH_HOSTNAME: ${{ vars.CF_SSH_HOSTNAME }}
           CF_VNC_URL: ${{ vars.CF_VNC_URL }}
         run: |
-          # The tunnel token is a credential: keep it in the CLOUDFLARE_TUNNEL_TOKEN secret only.
-          # Public hostnames are configured in the Cloudflare dashboard (remotely-managed tunnel):
-          #   SSH hostname -> ssh://localhost:2022      VNC hostname -> http://localhost:6901
-          if [[ -z "$CLOUDFLARE_TUNNEL_TOKEN" ]]; then
-            echo "::error::Secret CLOUDFLARE_TUNNEL_TOKEN is not set"; exit 1
-          fi
-          if [[ "${{ github.event.inputs.connection_mode }}" == "SSH (TCP)" ]]; then
-            [[ -n "$CF_SSH_HOSTNAME" ]] || { echo "::error::Repository variable CF_SSH_HOSTNAME is not set"; exit 1; }
+          # Two ways to run Cloudflare Tunnel:
+          #  - Named tunnel (token): hostnames are chosen by YOU in the Cloudflare dashboard.
+          #      SSH hostname -> ssh://localhost:2022      VNC hostname -> http://localhost:6901
+          #      Needs secret CLOUDFLARE_TUNNEL_TOKEN + variable CF_SSH_HOSTNAME (SSH) / CF_VNC_URL (VNC).
+          #  - Quick tunnel (VNC only, no token, no variables): Cloudflare picks a random
+          #      *.trycloudflare.com URL and cloudflared prints it in its log. Used automatically
+          #      in VNC mode when CF_VNC_URL is empty. Quick tunnels are HTTP only, so no SSH.
+          MODE="${{ github.event.inputs.connection_mode }}"
+          USE_QUICK=false
+          if [[ "$MODE" == "SSH (TCP)" ]]; then
+            [[ -n "$CLOUDFLARE_TUNNEL_TOKEN" ]] || { echo "::error::Secret CLOUDFLARE_TUNNEL_TOKEN is not set"; exit 1; }
+            [[ -n "$CF_SSH_HOSTNAME" ]] || { echo "::error::Repository variable CF_SSH_HOSTNAME is not set (SSH needs a named tunnel hostname)"; exit 1; }
+          elif [[ -z "$CF_VNC_URL" ]]; then
+            USE_QUICK=true
           else
-            [[ -n "$CF_VNC_URL" ]] || { echo "::error::Repository variable CF_VNC_URL is not set"; exit 1; }
+            [[ -n "$CLOUDFLARE_TUNNEL_TOKEN" ]] || { echo "::error::Secret CLOUDFLARE_TUNNEL_TOKEN is not set"; exit 1; }
           fi
 
           sudo mkdir -p --mode=0755 /usr/share/keyrings
@@ -155,29 +161,47 @@ jobs:
           sudo apt-get update && sudo apt-get install -y cloudflared
           cloudflared --version
 
-          nohup cloudflared tunnel --no-autoupdate run --token "$CLOUDFLARE_TUNNEL_TOKEN" > cloudflared.log 2>&1 &
+          # Fixed metrics port so we can poll /ready. The token goes in via the TUNNEL_TOKEN
+          # environment variable instead of the command line.
+          if [[ "$USE_QUICK" == "true" ]]; then
+            nohup cloudflared tunnel --no-autoupdate --metrics localhost:20241 --url http://localhost:6901 > cloudflared.log 2>&1 &
+          else
+            export TUNNEL_TOKEN="$CLOUDFLARE_TUNNEL_TOKEN"
+            nohup cloudflared tunnel --no-autoupdate --metrics localhost:20241 run > cloudflared.log 2>&1 &
+          fi
           CF_PID=$!
+
+          QUICK_URL=""
+          READY=false
           for i in $(seq 1 30); do
-            grep -q "Registered tunnel connection" cloudflared.log && break
+            if curl -sf http://localhost:20241/ready >/dev/null 2>&1 || grep -q "Registered tunnel connection" cloudflared.log; then
+              READY=true
+            fi
+            QUICK_URL=$(grep -oE 'https://[-a-z0-9]+\.trycloudflare\.com' cloudflared.log | head -1 || true)
+            if [[ "$READY" == "true" ]] && { [[ "$USE_QUICK" != "true" ]] || [[ -n "$QUICK_URL" ]]; }; then break; fi
             kill -0 "$CF_PID" 2>/dev/null || break
             sleep 2
           done
           echo "--- cloudflared.log ---"
           cat cloudflared.log
-          if ! grep -q "Registered tunnel connection" cloudflared.log; then
-            echo "::error::cloudflared did not register a tunnel connection, see log above"
+          if [[ "$READY" != "true" ]]; then
+            echo "::error::cloudflared did not become ready (no /ready and no registered connection), see log above"
             exit 1
           fi
 
-          if [[ "${{ github.event.inputs.connection_mode }}" == "SSH (TCP)" ]]; then
+          if [[ "$MODE" == "SSH (TCP)" ]]; then
             echo "mode=SSH" >> $GITHUB_OUTPUT
             echo "host=$CF_SSH_HOSTNAME" >> $GITHUB_OUTPUT
             echo "port=22" >> $GITHUB_OUTPUT
             echo "command=ssh -o ProxyCommand='cloudflared access ssh --hostname %h' debian@$CF_SSH_HOSTNAME" >> $GITHUB_OUTPUT
             echo "full_url=ssh://$CF_SSH_HOSTNAME" >> $GITHUB_OUTPUT
           else
-            BASE="${CF_VNC_URL%/}"
-            [[ "$BASE" == http* ]] || BASE="https://$BASE"
+            if [[ "$USE_QUICK" == "true" ]]; then
+              BASE="$QUICK_URL"
+            else
+              BASE="${CF_VNC_URL%/}"
+              [[ "$BASE" == http* ]] || BASE="https://$BASE"
+            fi
             echo "mode=VNC" >> $GITHUB_OUTPUT
             echo "full_url=$BASE/vnc.html?password=debian&autoconnect=true" >> $GITHUB_OUTPUT
           fi
